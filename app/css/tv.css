@@ -47,7 +47,10 @@ html, body {
 /* ---------- background photos ---------- */
 #bg, .bg-layer {
   position: absolute;
-  inset: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
 }
 #bg { z-index: 0; }   /* own stacking context: the layers' z-index stays inside */
 .bg-layer {
@@ -60,7 +63,10 @@ html, body {
 .bg-layer.instant { transition: none; }
 .bg-layer img {
   position: absolute;
-  inset: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
   width: 100%;
   height: 100%;
   object-fit: cover;
@@ -134,9 +140,9 @@ html, body {
   left: 78px;
   display: flex;
   align-items: center;
-  gap: 18px;
   text-shadow: 0 2px 22px rgba(0, 0, 0, 0.35);
 }
+#brand > * + * { margin-left: 18px; }  /* no flex gap before Chrome 84 (2018 TVs) */
 #brand-glyph {
   display: block;
   width: 80px;
@@ -163,11 +169,11 @@ html, body {
 #wx-now {
   display: flex;
   align-items: center;
-  gap: 12px;
   font-size: 28px;
   font-weight: 500;
   line-height: 1;
 }
+#wx-now > * + * { margin-left: 12px; }  /* no flex gap before Chrome 84 (2018 TVs) */
 #wx-now-icon {
   display: block;
   width: 52px;
@@ -180,7 +186,7 @@ html, body {
   font-variant-numeric: tabular-nums;
 }
 #wx-now-text {
-  margin-left: 4px;
+  margin-left: 16px;                /* the 12px between items, plus 4 */
   color: var(--text-2);
   white-space: pre;
 }
@@ -244,7 +250,10 @@ html, body {
 /* ---------- evening dimming ---------- */
 #night-shade {
   position: absolute;
-  inset: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
   background: rgba(0, 0, 0, 0.38);
   opacity: 0;
   transition: opacity 3s ease;
@@ -309,7 +318,10 @@ html.lite #wx-week {
   /* gentle top highlight, like light on the edge of glass */
   content: "";
   position: absolute;
-  inset: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
   border-radius: inherit;
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0) 40%);
   pointer-events: none;
@@ -337,10 +349,10 @@ html.lite #wx-week {
   left: 16px;
   top: var(--dock-pad-y);
   display: flex;
-  gap: var(--gap);
   transition: transform 0.38s var(--ease), opacity 0.25s ease;
   will-change: transform;
 }
+#dock-row > * + * { margin-left: var(--gap); }  /* no flex gap before Chrome 84 (2018 TVs) */
 #dock.dimmed #dock-row { opacity: 0.55; }
 #dock { transition: opacity 0.3s ease; }
 #dock.away { opacity: 0; }
@@ -356,7 +368,10 @@ html.lite #wx-week {
 }
 .tile .glow {
   position: absolute;
-  inset: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
   border-radius: inherit;
   box-shadow: 0 26px 48px rgba(0, 0, 0, 0.58), 0 0 0 1.5px rgba(255, 255, 255, 0.45), 0 0 50px rgba(255, 255, 255, 0.24);
   opacity: 0;
@@ -364,7 +379,10 @@ html.lite #wx-week {
 }
 .tile .face {
   position: absolute;
-  inset: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
   border-radius: inherit;
   overflow: hidden;
   background: rgba(255, 255, 255, 0.10);
@@ -526,7 +544,10 @@ html.lite #wx-week {
 /* ---------- + panel ---------- */
 #scrim {
   position: absolute;
-  inset: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
   background: rgba(0, 0, 0, 0.40);
   opacity: 0;
   transition: opacity 0.3s ease;
@@ -691,5 +712,8 @@ html.lite #wx-week {
 
 /* ---------- states ---------- */
 html.paused *, html.paused *::before, html.paused *::after { animation-play-state: paused !important; }
+/* Frees graphics memory for the app being opened: on a 2018 TV Netflix and
+   Prime Video fail to start while the photos and dock hold it. */
+html.paused #stage, html.launching #stage { display: none; }
 html.still *, html.still *::before, html.still *::after { transition: none !important; animation: none !important; }
 html.lite .bg-layer img { will-change: auto; }

@@ -95,9 +95,24 @@
     return new Promise(function (resolve) { setTimeout(function () { resolve('preview:' + what); }, 150); });
   }
 
-  // Opens an installed app. Falls back to an app-control launch if launch() fails.
-  P.launchApp = function (id) {
+  // Asks Samsung's launcher (the TV's local REST API, as Smart Hub and phone
+  // remotes use) to open an app by its store ID.
+  function smartHubLaunch(storeId) {
+    return new Promise(function (resolve, reject) {
+      var x = new XMLHttpRequest();
+      x.timeout = 5000;
+      x.open('POST', 'http://127.0.0.1:8001/api/v2/applications/' + encodeURIComponent(storeId));
+      x.onload = function () { if (x.status === 200) resolve('smarthub'); else reject(new Error('launcher HTTP ' + x.status)); };
+      x.onerror = x.ontimeout = function () { reject(new Error('launcher unreachable')); };
+      x.send();
+    });
+  }
+
+  // Opens an installed app: through Samsung's launcher when its store ID is
+  // known, else (or if that fails) launch(), then an app-control launch.
+  P.launchApp = function (id, storeId) {
     if (!tz) return previewLaunch(id);
+    if (storeId) return smartHubLaunch(storeId).catch(function () { return P.launchApp(id); });
     return new Promise(function (resolve, reject) {
       function viaAppControl(firstError) {
         try {

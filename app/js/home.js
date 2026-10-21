@@ -151,7 +151,7 @@
     orderedAppKeys().forEach(function (k) {
       var a = apps[k];
       if (!a || hidden.indexOf(k) >= 0) return;
-      list.push({ kind: 'app', key: 'app:' + k, appKey: k, label: defByKey[k].label, id: a.id,
+      list.push({ kind: 'app', key: 'app:' + k, appKey: k, label: defByKey[k].label, id: a.id, storeId: defByKey[k].storeId,
         icon: defByKey[k].icon === false ? null : (defByKey[k].icon || P.iconUrl(a.iconPath)) });
     });
     shortcuts.forEach(function (s) {
@@ -161,7 +161,7 @@
         icon: s.icon ? D.media(s.icon) : null, iconW: s.iconW || 0
       });
     });
-    list.push({ kind: 'add', key: 'add', label: 'Add photos and shortcuts' });
+    if (cfg.photoService !== false) list.push({ kind: 'add', key: 'add', label: 'Add photos and shortcuts' });
     return list;
   }
 
@@ -386,11 +386,25 @@
   }
 
   // ---------- opening things ----------
+  var launchGuard = null;
   function activate(it) {
     if (!it) return;
     if (it.kind === 'add') { openPanel(); return; }
     var p;
-    if (it.kind === 'app') p = P.launchApp(it.id);
+    // Drop the photo and dock layers before the app starts: on a 2018 TV
+    // Netflix and Prime Video fail to start while they hold graphics memory.
+    // Back on screen (onVisibility) or if the launch fails, they come back.
+    if (it.kind === 'app' && !cfg.preview) {
+      document.documentElement.classList.add('launching');
+      if (backdrop) backdrop.pause();
+      clearTimeout(launchGuard);
+      launchGuard = setTimeout(function () {    // still on screen: the app never came up
+        if (document.hidden) return;
+        document.documentElement.classList.remove('launching');
+        if (backdrop) backdrop.resume();
+      }, 8000);
+    }
+    if (it.kind === 'app') p = P.launchApp(it.id, it.storeId);
     else if (it.kind === 'web') p = P.openUrl(it.url);
     else p = P.openYouTube(it, ytMode);
     p.then(function (how) {
@@ -398,6 +412,8 @@
       else if (how === 'youtube-home') toast('YouTube opened, but not at this video');
       else if (how === 'browser-home') toast('The browser opened without the address');
     }, function (e) {
+      document.documentElement.classList.remove('launching');
+      if (backdrop && !document.hidden) backdrop.resume();
       toast('Couldn’t open ' + it.label + (e && e.message ? ' (' + e.message + ')' : ''), 4500);
     });
   }
@@ -747,6 +763,7 @@
 
   // ---------- service ----------
   function refresh() {
+    if (cfg.photoService === false) return Promise.resolve({ online: false });
     return D.refresh().then(function (r) {
       serviceUp = r.online;
       if (r.changed) {
@@ -769,7 +786,7 @@
   // Makes sure the photo service runs (it does not survive a reboot under a
   // public certificate, and the platform may reclaim it), then syncs.
   function ensureService() {
-    if (ensuring) return;
+    if (ensuring || cfg.photoService === false) return;
     ensuring = true;
     clearTimeout(retryTimer);
     D.health(2000).then(function (ok) {
@@ -808,7 +825,7 @@
       if (backdrop) backdrop.pause();
       return;
     }
-    document.documentElement.classList.remove('paused');
+    document.documentElement.classList.remove('paused', 'launching');
     renderClock();
     clearInterval(clockTimer);
     clearInterval(pollTimer);

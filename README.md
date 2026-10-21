@@ -36,7 +36,10 @@ in [docs/screenshots/on-tv](docs/screenshots/on-tv/).
   an hour the first time, and a free Samsung account. There is no ready-made
   download: a signed package only installs on the TV it was made for.
 - **Tested on one TV:** a 2023 Samsung QLED (Q70C) on Tizen 8. Other models
-  and years should be close but may differ. Reports welcome.
+  and years should be close but may differ. Reports welcome. It also runs on
+  a 2018 Samsung NU6900 on Tizen 4; if the photo website won't start on an
+  older TV, set `photoService: false` in `app/js/config.js` and remove
+  `<tizen:service>` and the `web.service` feature from `app/config.xml`.
 - **A big OS upgrade can delete it.** Samsung's Tizen OS upgrades (for example
   to Tizen 9 / One UI Tizen) have removed sideloaded apps on other TVs. You can
   reinstall it the same way.
