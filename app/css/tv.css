@@ -1,6 +1,8 @@
 /*
  * Glass Home - dark glass home screen, 1920 x 1080.
  * Only transform and opacity are animated (cheap on the TV's GPU).
+ * 2021 TVs (Tizen 6) run Chrome 76: no `inset` (Chrome 87) and no `gap` on
+ * flex rows (Chrome 84); flex rows space their items with margins instead.
  */
 :root {
   --tile: 156px;
@@ -47,7 +49,10 @@ html, body {
 /* ---------- background photos ---------- */
 #bg, .bg-layer {
   position: absolute;
-  inset: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
 }
 #bg { z-index: 0; }   /* own stacking context: the layers' z-index stays inside */
 .bg-layer {
@@ -60,7 +65,10 @@ html, body {
 .bg-layer.instant { transition: none; }
 .bg-layer img {
   position: absolute;
-  inset: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
   width: 100%;
   height: 100%;
   object-fit: cover;
@@ -134,9 +142,9 @@ html, body {
   left: 78px;
   display: flex;
   align-items: center;
-  gap: 18px;
   text-shadow: 0 2px 22px rgba(0, 0, 0, 0.35);
 }
+#brand > * + * { margin-left: 18px; }
 #brand-glyph {
   display: block;
   width: 80px;
@@ -163,11 +171,11 @@ html, body {
 #wx-now {
   display: flex;
   align-items: center;
-  gap: 12px;
   font-size: 28px;
   font-weight: 500;
   line-height: 1;
 }
+#wx-now > * + * { margin-left: 12px; }
 #wx-now-icon {
   display: block;
   width: 52px;
@@ -180,7 +188,7 @@ html, body {
   font-variant-numeric: tabular-nums;
 }
 #wx-now-text {
-  margin-left: 4px;
+  margin-left: 16px;   /* 12px item spacing + 4px */
   color: var(--text-2);
   white-space: pre;
 }
@@ -244,7 +252,10 @@ html, body {
 /* ---------- evening dimming ---------- */
 #night-shade {
   position: absolute;
-  inset: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
   background: rgba(0, 0, 0, 0.38);
   opacity: 0;
   transition: opacity 3s ease;
@@ -309,7 +320,10 @@ html.lite #wx-week {
   /* gentle top highlight, like light on the edge of glass */
   content: "";
   position: absolute;
-  inset: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
   border-radius: inherit;
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0) 40%);
   pointer-events: none;
@@ -337,10 +351,10 @@ html.lite #wx-week {
   left: 16px;
   top: var(--dock-pad-y);
   display: flex;
-  gap: var(--gap);
   transition: transform 0.38s var(--ease), opacity 0.25s ease;
   will-change: transform;
 }
+#dock-row > * + * { margin-left: var(--gap); }
 #dock.dimmed #dock-row { opacity: 0.55; }
 #dock { transition: opacity 0.3s ease; }
 #dock.away { opacity: 0; }
@@ -356,7 +370,10 @@ html.lite #wx-week {
 }
 .tile .glow {
   position: absolute;
-  inset: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
   border-radius: inherit;
   box-shadow: 0 26px 48px rgba(0, 0, 0, 0.58), 0 0 0 1.5px rgba(255, 255, 255, 0.45), 0 0 50px rgba(255, 255, 255, 0.24);
   opacity: 0;
@@ -364,7 +381,10 @@ html.lite #wx-week {
 }
 .tile .face {
   position: absolute;
-  inset: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
   border-radius: inherit;
   overflow: hidden;
   background: rgba(255, 255, 255, 0.10);
@@ -526,7 +546,10 @@ html.lite #wx-week {
 /* ---------- + panel ---------- */
 #scrim {
   position: absolute;
-  inset: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
   background: rgba(0, 0, 0, 0.40);
   opacity: 0;
   transition: opacity 0.3s ease;
@@ -575,9 +598,9 @@ html.lite #wx-week {
 }
 .step {
   display: flex;
-  gap: 26px;
   align-items: flex-start;
 }
+.step > * + * { margin-left: 26px; }
 .step-num {
   flex: none;
   width: 52px;
@@ -619,9 +642,9 @@ html.lite #wx-week {
 }
 .panel-buttons {
   display: flex;
-  gap: 22px;
   margin-top: 34px;
 }
+.panel-buttons > * + * { margin-left: 22px; }
 .pbtn {
   padding: 19px 36px;
   border-radius: 24px;
@@ -640,13 +663,13 @@ html.lite #wx-week {
 .panel-diag {
   display: flex;
   align-items: center;
-  gap: 18px;
   margin-top: 34px;
   padding-top: 24px;
   border-top: 1px solid rgba(255, 255, 255, 0.10);
   font-size: 19px;
   color: rgba(255, 255, 255, 0.46);
 }
+.panel-diag > * + * { margin-left: 18px; }
 .pbtn.small {
   flex: none;
   padding: 10px 20px;
