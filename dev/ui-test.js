@@ -197,6 +197,24 @@ async function tvState(p) {
     check('service down: + shows no password and says the website is starting', down.open && down.pw === '—' && /starting/.test(down.note), down);
     await tvDown.close();
 
+    // Older-TV switches: smartHubLaunch is off by default; photoService: false
+    // (here ?photoService=0) leaves only the apps, and nothing can be hidden.
+    const tvOld = await browser.newPage({ width: 1920, height: 1080 });
+    await tvOld.goto(base + '&still=1&photoService=0', 4500);
+    check('smartHubLaunch is off by default', (await tvOld.eval('GH.config.smartHubLaunch')) === false);
+    s = await tvState(tvOld);
+    check('no photo service: only the 6 apps, no shortcuts or +', s.count === 6, s);
+    for (let i = 0; i < 10; i++) await tvOld.key(K.RIGHT);
+    s = await tvState(tvOld);
+    check('no photo service: the last tile is an app', s.label === 'Internet', s.label);
+    await tvOld.key(K.ENTER, { hold: 900 });
+    s = await tvState(tvOld);
+    check('no photo service: app menu has no Hide', JSON.stringify(s.menuItems) === JSON.stringify(['Move left*', 'Move right(x)', 'Cancel']), s.menuItems);
+    await tvOld.key(K.BACK);
+    const oldErrors = tvOld.errors.filter((e) => !/favicon\.ico/.test(e));
+    check('no photo service: no script errors', oldErrors.length === 0, oldErrors);
+    await tvOld.close();
+
     // Screensaver (?idle shortens the delay) and evening dimming.
     const tvAmb = await browser.newPage({ width: 1920, height: 1080 });
     await tvAmb.goto(base + '&bg=nature-06.jpg&idle=1500&night=1', 3000);

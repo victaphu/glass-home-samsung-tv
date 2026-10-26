@@ -41,6 +41,10 @@
   var panel = $('panel');
   var scrim = $('scrim');
 
+  // Older-TV switches (config.js). ?photoService=0 tries the first in preview.
+  var photoService = cfg.photoService !== false && Q.photoService !== '0';
+  var smartHubLaunch = cfg.smartHubLaunch === true;
+
   var defs = cfg.apps;
   var defByKey = {};
   defs.forEach(function (d) { defByKey[d.key] = d; });
@@ -150,10 +154,14 @@
     var list = [];
     orderedAppKeys().forEach(function (k) {
       var a = apps[k];
-      if (!a || hidden.indexOf(k) >= 0) return;
+      // Hidden apps come back from +, so without the photo service (no +)
+      // nothing stays hidden.
+      if (!a || (photoService && hidden.indexOf(k) >= 0)) return;
       list.push({ kind: 'app', key: 'app:' + k, appKey: k, label: defByKey[k].label, id: a.id,
+        storeId: defByKey[k].storeId,
         icon: defByKey[k].icon === false ? null : (defByKey[k].icon || P.iconUrl(a.iconPath)) });
     });
+    if (!photoService) return list;
     shortcuts.forEach(function (s) {
       list.push({
         kind: s.type === 'youtube' ? 'youtube' : 'web', key: 'sc:' + s.id, scId: s.id, label: s.name, url: s.url,
@@ -386,11 +394,28 @@
   }
 
   // ---------- opening things ----------
+  // smartHubLaunch (older TVs): the photos and dock are hidden while an app
+  // starts, to free graphics memory (on a 2018 TV Netflix and Prime Video fail
+  // to start while they hold it). They come back when Glass Home is on screen
+  // again, if the launch fails, or after 8 s if the app never appears.
+  var launchGuard = null;
+  function setLaunching(on) {
+    clearTimeout(launchGuard);
+    document.documentElement.classList.toggle('launching', on);
+    if (!on) return;
+    if (backdrop) backdrop.pause();
+    launchGuard = setTimeout(function () {
+      if (!document.hidden) { setLaunching(false); if (backdrop) backdrop.resume(); }
+    }, 8000);
+  }
+
   function activate(it) {
     if (!it) return;
     if (it.kind === 'add') { openPanel(); return; }
     var p;
-    if (it.kind === 'app') p = P.launchApp(it.id);
+    var viaSmartHub = it.kind === 'app' && smartHubLaunch;
+    if (viaSmartHub && !cfg.preview) setLaunching(true);
+    if (it.kind === 'app') p = P.launchApp(it.id, viaSmartHub ? it.storeId : null);
     else if (it.kind === 'web') p = P.openUrl(it.url);
     else p = P.openYouTube(it, ytMode);
     p.then(function (how) {
@@ -398,6 +423,7 @@
       else if (how === 'youtube-home') toast('YouTube opened, but not at this video');
       else if (how === 'browser-home') toast('The browser opened without the address');
     }, function (e) {
+      if (viaSmartHub) { setLaunching(false); if (backdrop && !document.hidden) backdrop.resume(); }
       toast('Couldn’t open ' + it.label + (e && e.message ? ' (' + e.message + ')' : ''), 4500);
     });
   }
@@ -415,11 +441,11 @@
     menuItems = [
       { label: 'Move left', disabled: gi <= 0, run: function () { moveItem(it, -1); } },
       { label: 'Move right', disabled: gi >= group.length - 1, run: function () { moveItem(it, 1); } },
-      it.kind === 'app'
-        ? { label: 'Hide', run: function () { hideApp(it); } }
-        : { label: 'Remove', run: function () { removeShortcut(it); } },
+      it.kind !== 'app' ? { label: 'Remove', run: function () { removeShortcut(it); } }
+        : photoService ? { label: 'Hide', run: function () { hideApp(it); } }
+        : null,                           // no + to bring a hidden app back
       { label: 'Cancel', run: function () {} }
-    ];
+    ].filter(Boolean);
     menuFocus = 0;
     while (menuItems[menuFocus].disabled) menuFocus += 1;
     menu.textContent = '';
@@ -722,7 +748,7 @@
   // Photos uploaded since the TV last looked are shown next ("fresh"); the
   // first sync after install only records what exists.
   function updatePhotos() {
-    var st = D.cached();
+    var st = photoService ? D.cached() : null;
     var list = st && st.photos ? st.photos : [];
     var known = ls.get('gh.bg.known');
     var knownSet = {};
@@ -747,6 +773,7 @@
 
   // ---------- service ----------
   function refresh() {
+    if (!photoService) return Promise.resolve({ online: false });
     return D.refresh().then(function (r) {
       serviceUp = r.online;
       if (r.changed) {
@@ -769,7 +796,7 @@
   // Makes sure the photo service runs (it does not survive a reboot under a
   // public certificate, and the platform may reclaim it), then syncs.
   function ensureService() {
-    if (ensuring) return;
+    if (ensuring || !photoService) return;
     ensuring = true;
     clearTimeout(retryTimer);
     D.health(2000).then(function (ok) {
@@ -809,6 +836,7 @@
       return;
     }
     document.documentElement.classList.remove('paused');
+    setLaunching(false);
     renderClock();
     clearInterval(clockTimer);
     clearInterval(pollTimer);
@@ -863,7 +891,7 @@
 
     var cachedApps = ls.get('gh.apps.v1');
     if (cachedApps && cachedApps.apps) apps = cachedApps.apps;
-    var st = D.cached();
+    var st = photoService ? D.cached() : null;
     shortcuts = (st && st.shortcuts) || [];
     focusKey = ls.get('gh.focus');
     rebuildDock();
@@ -885,7 +913,7 @@
     loadMock().then(resolveApps).then(function () {
       if (Q.focus && /^\d+$/.test(Q.focus)) setFocus(+Q.focus);
       ensureService();
-      if (Q.panel === '1') setTimeout(openPanel, 300);
+      if (Q.panel === '1' && photoService) setTimeout(openPanel, 300);
       if (Q.menu === '1') setTimeout(openMenu, 300);
     });
     pollTimer = setInterval(refresh, cfg.pollEveryMs);

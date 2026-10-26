@@ -29,6 +29,19 @@
     // The photo/shortcut service in this package (app id <packageId>.Photos).
     serviceName: 'Photos',
     serviceBase: q.api || (preview ? 'http://127.0.0.1:18090' : 'http://127.0.0.1:8090'),
+    // false: no photo website, so no + tile, shortcuts or uploaded photos; only
+    // the bundled photos and the dock apps. For TVs that can't run the service
+    // (2018 models have Node 4); also remove <tizen:service> and the
+    // web.service feature from config.xml.
+    photoService: true,
+
+    // true on older TVs where apps won't start from the dock (on a 2018 TV
+    // Netflix stayed black and Prime Video crashed): apps with a `storeId` are
+    // opened through Samsung's own launcher (the TV's local API on port 8001,
+    // as Smart Hub and phone remotes use), and the photos are hidden while an
+    // app starts to free graphics memory. Falls back to the normal launch if
+    // the launcher refuses. Off by default: not needed or tested on newer TVs.
+    smartHubLaunch: false,
 
     photoIntervalMs: 45000,
     fadeMs: 1600,
@@ -68,21 +81,24 @@
 
     // The dock's apps, in order. Each is found at start-up by the Tizen app IDs
     // listed (list yours with `sdb shell 0 vd_applist` in Developer Mode), then
-    // by name. Remove entries you don't have; add others the same way.
+    // by name. Remove entries you don't have; add others the same way. The
+    // RN1MCdNq8t / evKhCgZelL IDs are Netflix and Prime Video on 2017-2018 TVs.
+    // `storeId`: the Samsung store ID (`app_id` in vd_applist), used only with
+    // smartHubLaunch.
     // `icon`: a path under app/ to use your own image, or false for a plain
     // glass tile with the app's name. Some apps report a poor icon to other
     // apps (YouTube reports its Cobalt engine's pinwheel, Prime Video's may not
     // load, Samsung TV Plus is a system app), so those default to name tiles.
     apps: [
-      { key: 'youtube', label: 'YouTube', ids: ['9Ur5IzDKqV.TizenYouTube', 'com.samsung.tv.cobalt-yt'],
+      { key: 'youtube', label: 'YouTube', storeId: '111299001912', ids: ['9Ur5IzDKqV.TizenYouTube', 'com.samsung.tv.cobalt-yt'],
         names: ['^youtube$'], icon: false },
-      { key: 'netflix', label: 'Netflix', ids: ['org.tizen.netflix-app'],
+      { key: 'netflix', label: 'Netflix', storeId: '11101200001', ids: ['org.tizen.netflix-app', 'RN1MCdNq8t.Netflix'],
         names: ['^netflix$', '\\bnetflix\\b'] },
-      { key: 'prime', label: 'Prime Video', ids: ['org.tizen.primevideo', 'org.tizen.ignition'],
+      { key: 'prime', label: 'Prime Video', storeId: '3201512006785', ids: ['org.tizen.primevideo', 'org.tizen.ignition', 'evKhCgZelL.AmazonIgnitionLauncher2'],
         names: ['^prime video$', '^amazon prime video$', '\\bprime video\\b'], icon: false },
       { key: 'tvplus', label: 'Samsung TV Plus', ids: ['com.samsung.tv.tvPlusDeeplinker', 'com.samsung.tv.tvplus'],
         names: ['^samsung tv plus$', '^tv plus$', 'samsung tv plus'], icon: false },
-      { key: 'disney', label: 'Disney+', ids: ['MCmYXNxgcu.DisneyPlus'],
+      { key: 'disney', label: 'Disney+', storeId: '3201901017640', ids: ['MCmYXNxgcu.DisneyPlus'],
         names: ['^disney plus$', '\\bdisney plus\\b', '^disney$'] },
       { key: 'browser', label: 'Internet', ids: ['org.tizen.browser'],
         names: ['^internet$', '^browser$'] }

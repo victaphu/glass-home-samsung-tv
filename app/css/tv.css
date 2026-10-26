@@ -728,3 +728,5 @@ html.lite #wx-week {
 html.paused *, html.paused *::before, html.paused *::after { animation-play-state: paused !important; }
 html.still *, html.still *::before, html.still *::after { transition: none !important; animation: none !important; }
 html.lite .bg-layer img { will-change: auto; }
+/* smartHubLaunch (older TVs): frees graphics memory while an app starts. */
+html.launching #stage { display: none; }

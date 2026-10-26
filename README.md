@@ -36,7 +36,9 @@ in [docs/screenshots/on-tv](docs/screenshots/on-tv/).
   an hour the first time, and a free Samsung account. There is no ready-made
   download: a signed package only installs on the TV it was made for.
 - **Tested on one TV:** a 2023 Samsung QLED (Q70C) on Tizen 8. Other models
-  and years should be close but may differ. Reports welcome.
+  and years should be close but may differ. Reports welcome. On 2018 TVs
+  (Tizen 4) set `photoService: false` and `smartHubLaunch: true` (see
+  Settings).
 - **A big OS upgrade can delete it.** Samsung's Tizen OS upgrades (for example
   to Tizen 9 / One UI Tizen) have removed sideloaded apps on other TVs. You can
   reinstall it the same way.
@@ -69,6 +71,8 @@ All in [`app/js/config.js`](app/js/config.js):
 | `night` | Evening dimming hours (24-hour, TV clock). |
 | `youtubeMode` | How YouTube shortcuts are opened (see below). |
 | `photoIntervalMs` | How often the photo changes. |
+| `photoService` | `false` turns off the photo website, and with it **+**, shortcuts and your own photos. For TVs that can't run it (2018 models); also remove `<tizen:service>` and the `web.service` feature from `app/config.xml`. |
+| `smartHubLaunch` | `true` on older TVs where apps won't start from the dock: opens them through Samsung's own launcher and hides the photos while they start. Off by default. |
 
 Your own logo: `scripts/use-logo.sh path/to/logo.png` (square, ideally 1024 x
 1024) makes the TV icon and the website icons. The on-screen name is in
