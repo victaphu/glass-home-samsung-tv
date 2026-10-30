@@ -126,7 +126,7 @@ Reported by people running it. Thank you! To add yours, fill in a
 |---|---|---|---|---|
 | Samsung S85F | 2025 | 10 | | [#8](https://github.com/victaphu/glass-home-samsung-tv/issues/8) |
 | Samsung Q70C | 2023 | 8 | the TV it was built on | |
-| Samsung S95B | 2022 | 6.5 | HDMI input tiles tested here | [#10](https://github.com/victaphu/glass-home-samsung-tv/pull/10) |
+| Samsung S95B | 2022 | 6.5 | HDMI and Live TV tiles tested here | [#10](https://github.com/victaphu/glass-home-samsung-tv/pull/10), [#12](https://github.com/victaphu/glass-home-samsung-tv/pull/12) |
 | Samsung Q80A | 2021 | 6.0 | | [#9](https://github.com/victaphu/glass-home-samsung-tv/issues/9) |
 | Samsung QN90A | 2021 | 6.0 | needed the CSS fixes from #5, now included | [#4](https://github.com/victaphu/glass-home-samsung-tv/issues/4) |
 | Samsung TU8000 | 2020 | 5.5 | photo service included | [#3](https://github.com/victaphu/glass-home-samsung-tv/pull/3) |

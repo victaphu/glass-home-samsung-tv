@@ -153,9 +153,9 @@
 
   // HDMI inputs from config.js, in the order chosen with Move left/right;
   // inputs not moved yet follow, in config order. (?inputs=1 shows two sample
-  // inputs in preview.)
+  // HDMI inputs and Live TV in preview.)
   var inputDefs = cfg.preview && Q.inputs === '1'
-    ? [{ hdmi: 2, label: 'Games console' }, { hdmi: 3, label: 'Blu-ray' }]
+    ? [{ hdmi: 2, label: 'Games console' }, { hdmi: 3, label: 'Blu-ray' }, { tv: true, label: 'Live TV' }]
     : (cfg.inputs || []);
   function inputKey(inp) { return inp.tv ? 'in:tv' : 'in:' + inp.hdmi; }
   function orderedInputs() {

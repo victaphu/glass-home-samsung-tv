@@ -215,12 +215,12 @@ async function tvState(p) {
     check('no photo service: no script errors', oldErrors.length === 0, oldErrors);
     await tvOld.close();
 
-    // HDMI input tiles (?inputs=1: 'Games console' on HDMI 2, 'Blu-ray' on HDMI 3).
+    // Input tiles (?inputs=1: 'Games console' on HDMI 2, 'Blu-ray' on HDMI 3, 'Live TV').
     const kinds = (p) => p.eval(`[...document.querySelectorAll('#dock-row .tile')].map((t) => t.className.replace('tile tile-', '').split(' ')[0])`);
     const tvIn = await browser.newPage({ width: 1920, height: 1080 });
     await tvIn.eval(`localStorage.removeItem('gh.inputOrder')`).catch(() => {});
     await tvIn.goto(base + '&still=1&inputs=1&focus=6', 4500);   // the dock remembers focus, so set it
-    check('inputs: after the apps, before the shortcuts', JSON.stringify(await kinds(tvIn)) === JSON.stringify(['app', 'app', 'app', 'app', 'app', 'app', 'input', 'input', 'web', 'web', 'youtube', 'add']), await kinds(tvIn));
+    check('inputs: after the apps, before the shortcuts', JSON.stringify(await kinds(tvIn)) === JSON.stringify(['app', 'app', 'app', 'app', 'app', 'app', 'input', 'input', 'input', 'web', 'web', 'youtube', 'add']), await kinds(tvIn));
     s = await tvState(tvIn);
     check('inputs: in config order, with the port under the name', s.label === 'Games console' && /HDMI 2/.test(await tvIn.eval(`document.querySelector('#dock-row .tile.focused').textContent`)), s.label);
     await tvIn.key(K.ENTER, { hold: 900 });
@@ -237,6 +237,19 @@ async function tvState(p) {
     await sleep(400);
     s = await tvState(tvIn);
     check('OK on an input switches to it (preview toast)', /would open Blu-ray/.test(s.toast), s.toast);
+    await tvIn.key(K.RIGHT);
+    await tvIn.key(K.RIGHT);                // Live TV, last of the inputs
+    s = await tvState(tvIn);
+    const liveText = await tvIn.eval(`document.querySelector('#dock-row .tile.focused').textContent`);
+    check('Live TV: after the HDMI inputs, with no port caption', s.label === 'Live TV' && !/HDMI/.test(liveText), { label: s.label, text: liveText });
+    await tvIn.key(K.ENTER, { hold: 900 });
+    s = await tvState(tvIn);
+    check('Live TV: menu has Move left and Hide', JSON.stringify(s.menuItems) === JSON.stringify(['Move left*', 'Move right(x)', 'Hide', 'Cancel']), s.menuItems);
+    await tvIn.key(K.BACK);
+    await tvIn.key(K.ENTER);
+    await sleep(400);
+    s = await tvState(tvIn);
+    check('OK on Live TV switches to it (preview toast)', /would open Live TV/.test(s.toast), s.toast);
     await tvIn.goto(base + '&still=1&inputs=1&photoService=0&focus=6', 4500);
     await tvIn.key(K.ENTER, { hold: 900 });
     s = await tvState(tvIn);
