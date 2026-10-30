@@ -157,11 +157,12 @@
   var inputDefs = cfg.preview && Q.inputs === '1'
     ? [{ hdmi: 2, label: 'Games console' }, { hdmi: 3, label: 'Blu-ray' }]
     : (cfg.inputs || []);
+  function inputKey(inp) { return inp.tv ? 'in:tv' : 'in:' + inp.hdmi; }
   function orderedInputs() {
     // Ranked from the unsorted list: older engines sort in place, so indexOf
     // on the array being sorted can move under the comparator.
     function rank(inp) {
-      var i = inputOrder.indexOf('in:' + inp.hdmi);
+      var i = inputOrder.indexOf(inputKey(inp));
       return i < 0 ? inputOrder.length + inputDefs.indexOf(inp) : i;
     }
     return inputDefs.slice().sort(function (a, b) { return rank(a) - rank(b); });
@@ -179,9 +180,9 @@
         icon: defByKey[k].icon === false ? null : (defByKey[k].icon || P.iconUrl(a.iconPath)) });
     });
     orderedInputs().forEach(function (inp) {
-      var k = 'in:' + inp.hdmi;
+      var k = inputKey(inp);
       if (photoService && hidden.indexOf(k) >= 0) return;    // as for apps
-      list.push({ kind: 'input', key: k, appKey: k, label: inp.label, hdmi: inp.hdmi, icon: inp.icon || null });
+      list.push({ kind: 'input', key: k, appKey: k, label: inp.label, hdmi: inp.hdmi, tv: !!inp.tv, icon: inp.icon || null });
     });
     if (!photoService) return list;
     shortcuts.forEach(function (s) {
@@ -325,7 +326,7 @@
       } else {
         face.appendChild(div('name-fallback', it.label));
       }
-      face.appendChild(div('input-port', 'HDMI ' + it.hdmi));
+      if (!it.tv) face.appendChild(div('input-port', 'HDMI ' + it.hdmi));   // no port caption on Live TV
     } else {
       face.appendChild(plusGlyph());
     }
@@ -450,7 +451,7 @@
     var viaSmartHub = it.kind === 'app' && smartHubLaunch;
     if (viaSmartHub && !cfg.preview) setLaunching(true);
     if (it.kind === 'app') p = P.launchApp(it.id, viaSmartHub ? it.storeId : null);
-    else if (it.kind === 'input') p = P.switchInput(it.hdmi);
+    else if (it.kind === 'input') p = P.switchInput(it.tv ? 'TV' : it.hdmi);
     else if (it.kind === 'web') p = P.openUrl(it.url);
     else p = P.openYouTube(it, ytMode);
     p.then(function (how) {

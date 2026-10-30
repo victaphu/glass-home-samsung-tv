@@ -68,7 +68,7 @@ All in [`app/js/config.js`](app/js/config.js):
 | Setting | What it does |
 |---|---|
 | `apps` | The dock apps, in order. Each is found by its Tizen app ID, then by name. Remove what you don't have. `icon: false` shows a plain name tile. |
-| `inputs` | HDMI ports as dock tiles, after the apps: `{ hdmi: 4, label: 'Games console' }`, optionally with an `icon` path under `app/`. Empty by default. |
+| `inputs` | HDMI ports as dock tiles, after the apps: `{ hdmi: 4, label: 'Games console' }`, optionally with an `icon` path under `app/`. `{ tv: true, label: 'Live TV' }` is the antenna (the TV's tuner). Empty by default. |
 | `weather` | Off until you set `enabled: true`, `latitude` and `longitude` (`place` is the label shown under the forecast; `temperatureUnit: 'fahrenheit'` for °F). |
 | `locale` | Date and time format, e.g. `'en-GB'`; empty uses the TV's. |
 | `ambient` | Screensaver delay. |
@@ -112,6 +112,10 @@ method, but this wasn't tested on a TV yet).
 `tizen.tvwindow.setSource`, then open Samsung's TV viewer
 (`org.tizen.tv-viewer`) so the input fills the screen. This needs the public
 `tv.window` privilege. Tested on a 2022 S95B (Tizen 6.5) with HDMI 4.
+
+**Live TV** (`{ tv: true }` in `inputs`) does the same with the TV's tuner
+source. If the TV reports no tuner source, only the TV viewer is opened.
+Tested on a 2022 S95B (Tizen 6.5), which reports the tuner as `TV` number 1.
 
 ## Tested TVs
 

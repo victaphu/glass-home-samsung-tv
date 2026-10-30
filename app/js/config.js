@@ -108,6 +108,8 @@
     // switches the TV to it and opens Samsung's TV viewer full screen.
     // `icon`: optional, a path under app/; without it the tile shows `label`.
     // e.g. { hdmi: 1, label: 'Games console', icon: 'img/inputs/console.png' }
+    // { tv: true, label: 'Live TV' } is the antenna: OK switches the TV to its
+    // tuner and opens the TV viewer.
     inputs: []
   };
 }());
