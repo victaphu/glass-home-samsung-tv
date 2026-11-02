@@ -35,6 +35,13 @@
     // web.service feature from config.xml.
     photoService: true,
 
+    // Start with all apps from Vetro's Launcher list when it is available.
+    // The viewer can enable this and choose apps under + > Apps from Vetro.
+    // Requires the photo service and Vetro running on this TV (port 8099).
+    // Saved choices take precedence; without a list the configured apps below
+    // are used. Vetro's launcher does not need to be enabled.
+    vetroApps: false,
+
     // true on older TVs where apps won't start from the dock (on a 2018 TV
     // Netflix stayed black and Prime Video crashed): apps with a `storeId` are
     // opened through Samsung's own launcher (the TV's local API on port 8001,
@@ -113,3 +120,4 @@
     inputs: []
   };
 }());
+

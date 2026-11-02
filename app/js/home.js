@@ -15,6 +15,7 @@
   var D = GH.data;
   var Q = GH.query;
   var ls = GH.ls;
+  var V = GH.vetro;
   var $ = function (id) { return document.getElementById(id); };
 
   // Dock geometry. Tiles are 156 px; with more than 9 items they shrink to no
@@ -45,7 +46,7 @@
   var photoService = cfg.photoService !== false && Q.photoService !== '0';
   var smartHubLaunch = cfg.smartHubLaunch === true;
 
-  var defs = cfg.apps;
+  var defs = photoService ? V.definitions() : cfg.apps;
   var defByKey = {};
   defs.forEach(function (d) { defByKey[d.key] = d; });
 
@@ -62,6 +63,7 @@
   var panelButtons = [];
   var panelFocus = 0;
   var panelRowFocus = 0;
+  var pickerRows = [], pickerFocus = 0, pickerEnabled = false, pickerIds = [], pickerEntries = [];
   var confirmNewPw = 0;
   var waitEnterRelease = false;
   var releaseTimer = null;
@@ -586,6 +588,7 @@
     panelButtons = [];
     panelButtons.push({ id: 'newpw', label: confirmNewPw ? 'Press OK again to confirm' : 'New password', cls: confirmNewPw ? 'armed' : '' });
     if (hidden.length) panelButtons.push({ id: 'unhide', label: 'Show hidden apps (' + hidden.length + ')' });
+    if (V.available || V.entries.length) panelButtons.push({ id: 'vetro', label: 'Apps from Vetro' });
     panelButtons.push({ id: 'close', label: 'Done' });
     panelButtons.push({ id: 'ytmode', label: 'YouTube links: ' + YT_MODE_NAMES[ytMode], small: true });
     panelFocus = clamp(panelFocus, 0, panelButtons.length - 1);
@@ -630,6 +633,7 @@
     label.classList.remove('on');
     refresh().then(function () { if (mode === 'panel') renderPanel(); });
     P.storage().then(function (s) { storage = s; if (mode === 'panel') renderPanel(); });
+    refreshVetro();
   }
 
   function closePanel() {
@@ -644,6 +648,7 @@
   function panelAction(b) {
     if (!b) return;
     if (b.id === 'close') { closePanel(); return; }
+    if (b.id === 'vetro') { openVetroPicker(); return; }
     if (b.id === 'unhide') {
       hidden = [];
       ls.set('gh.hidden', hidden);
@@ -677,6 +682,108 @@
     }
   }
 
+  // ---------- optional Vetro app selection ----------
+  function refreshVetro() {
+    if (!photoService) return Promise.resolve();
+    var firstImport = V.entries.length === 0;
+    return V.refresh().then(function () {
+      if (firstImport && V.active()) {
+        var keys = V.definitions().map(function (d) { return d.key; });
+        hidden = hidden.filter(function (k) { return keys.indexOf(k) < 0; });
+        ls.set('gh.hidden', hidden);
+      }
+      resolveApps();
+      if (mode === 'panel') renderPanel();
+    });
+  }
+
+  function openVetroPicker() {
+    pickerEnabled = V.enabled;
+    pickerIds = (V.selected || V.entries.map(function (e) { return e.appId; })).slice();
+    pickerEntries = V.entries.slice();
+    pickerFocus = 0;
+    mode = 'vetro';
+    panel.classList.remove('open');
+    $('vetro-picker').classList.add('open');
+    $('vetro-picker').setAttribute('aria-hidden', 'false');
+    renderVetroPicker();
+  }
+
+  function closeVetroPicker() {
+    $('vetro-picker').classList.remove('open');
+    $('vetro-picker').setAttribute('aria-hidden', 'true');
+    panel.classList.add('open');
+    mode = 'panel';
+    renderPanel();
+  }
+
+  function renderVetroPicker() {
+    $('vetro-note').textContent = V.available
+      ? 'Choose apps from Vetro’s Samsung Home list. Your choices are saved on this TV.'
+      : 'Vetro is unavailable. You can still use your saved app list.';
+    pickerRows = [
+      { id: 'enabled', label: 'Use Vetro apps', checked: pickerEnabled },
+      { id: 'all', label: 'Select all' },
+      { id: 'none', label: 'Clear selection' }
+    ];
+    pickerEntries.forEach(function (e) {
+      pickerRows.push({ id: 'app', appId: e.appId, label: e.label, checked: pickerIds.indexOf(e.appId) >= 0 });
+    });
+    pickerRows.push({ id: 'save', label: 'Save' });
+    pickerRows.push({ id: 'cancel', label: 'Cancel' });
+    var wrap = $('vetro-options');
+    var top = wrap.scrollTop;
+    wrap.textContent = '';
+    pickerRows.forEach(function (r, i) {
+      var e = div('vetro-option' + (i === pickerFocus ? ' focused' : ''));
+      e.setAttribute('role', r.checked === undefined ? 'button' : 'checkbox');
+      if (r.checked !== undefined) {
+        e.setAttribute('aria-checked', String(r.checked));
+        e.appendChild(div('vetro-check', r.checked ? '✓' : ''));
+      }
+      e.appendChild(div('vetro-label', r.label));
+      e.onclick = function () { pickerFocus = i; activateVetroRow(); };
+      r.el = e;
+      wrap.appendChild(e);
+    });
+    wrap.scrollTop = top;
+    focusVetroRow();
+  }
+
+  function focusVetroRow() {
+    pickerRows.forEach(function (r, i) { r.el.classList.toggle('focused', i === pickerFocus); });
+    var e = pickerRows[pickerFocus].el, wrap = $('vetro-options');
+    if (e.offsetTop < wrap.scrollTop) wrap.scrollTop = e.offsetTop;
+    if (e.offsetTop + e.offsetHeight > wrap.scrollTop + wrap.clientHeight) wrap.scrollTop = e.offsetTop + e.offsetHeight - wrap.clientHeight;
+  }
+
+  function activateVetroRow() {
+    var r = pickerRows[pickerFocus];
+    if (r.id === 'cancel') { closeVetroPicker(); return; }
+    if (r.id === 'save') {
+      V.save(pickerEnabled, pickerIds);
+      // Explicit selection unhides chosen apps; retain unrelated input choices.
+      if (pickerEnabled) {
+        var keys = V.definitions().map(function (d) { return d.key; });
+        hidden = hidden.filter(function (k) { return keys.indexOf(k) < 0; });
+        ls.set('gh.hidden', hidden);
+      }
+      resolveApps();
+      closeVetroPicker();
+      toast('App selection saved');
+      return;
+    }
+    if (r.id === 'enabled') pickerEnabled = !pickerEnabled;
+    if (r.id === 'all') { pickerEnabled = true; pickerIds = pickerEntries.map(function (e) { return e.appId; }); }
+    if (r.id === 'none') { pickerEnabled = true; pickerIds = []; }
+    if (r.id === 'app') {
+      pickerEnabled = true;
+      var n = pickerIds.indexOf(r.appId);
+      if (n < 0) pickerIds.push(r.appId); else pickerIds.splice(n, 1);
+    }
+    renderVetroPicker();
+  }
+
   // ---------- keys ----------
   function onKeyDown(e) {
     var k = e.keyCode;
@@ -684,10 +791,19 @@
       e.preventDefault();
       if (mode === 'menu') closeMenu();
       else if (mode === 'panel') closePanel();
+      else if (mode === 'vetro') closeVetroPicker();
       return;                                   // at the top level Back does nothing
     }
     if ([KEY.LEFT, KEY.RIGHT, KEY.UP, KEY.DOWN, KEY.ENTER].indexOf(k) < 0) return;
     e.preventDefault();
+    if (mode === 'vetro') {
+      if (k === KEY.ENTER && !e.repeat) activateVetroRow();
+      if (k === KEY.UP || k === KEY.DOWN) {
+        pickerFocus = clamp(pickerFocus + (k === KEY.UP ? -1 : 1), 0, pickerRows.length - 1);
+        focusVetroRow();
+      }
+      return;
+    }
     if (mode === 'menu') {
       if (k === KEY.ENTER) {
         if (waitEnterRelease || e.repeat) return;   // OK still held from the long press
@@ -852,14 +968,26 @@
     }).then(function (ok) {
       ensuring = false;
       serviceUp = !!ok;
-      if (ok) return refresh();
+      if (ok) { refreshVetro(); return refresh(); }
       if (mode === 'panel') renderPanel();
       if (!document.hidden) retryTimer = setTimeout(ensureService, 30000);
     });
   }
 
+  var resolveGeneration = 0;
   function resolveApps() {
-    return P.resolveApps(defs).then(function (found) {
+    var generation = ++resolveGeneration;
+    defs = photoService ? V.definitions() : cfg.apps;
+    defByKey = {};
+    defs.forEach(function (d) { defByKey[d.key] = d; });
+    var resolving = defs;
+    return P.resolveApps(resolving).then(function (found) {
+      if (generation !== resolveGeneration) return;
+      // Some system apps in Samsung Home are not exposed by getAppsInfo.
+      // Vetro supplies their exact launch IDs; name tiles remain usable.
+      resolving.forEach(function (d) {
+        if (d.fromVetro && !found[d.key]) found[d.key] = { id: d.ids[0], name: d.label, iconPath: null };
+      });
       apps = found;
       if (found.youtube) P.setYouTubeId(found.youtube.id);
       ls.set('gh.apps.v1', { at: Date.now(), apps: found });
@@ -967,3 +1095,4 @@
 
   init();
 }());
+

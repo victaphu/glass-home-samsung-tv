@@ -24,6 +24,7 @@ var imgu = require('./imageutil.js');
 var auth = require('./auth.js');
 var storeMod = require('./store.js');
 var yt = require('../js/ytparse.js');
+var vetro = require('./vetro.js');
 
 var VERSION = '1.0.0';
 var COOKIE = 'gh_sid';
@@ -122,6 +123,7 @@ function createService(opts) {
   Object.keys(fileCfg).forEach(function (k) { if (k in DEFAULTS) cfg[k] = fileCfg[k]; });
   Object.keys(opts.config || {}).forEach(function (k) { cfg[k] = opts.config[k]; });
   if (opts.port) cfg.port = opts.port;
+  var readVetroApps = vetro.createReader(cfg.packageId);
 
   var hosts = opts.hosts || ['0.0.0.0'];
   var localKey = readLocalKey(appDir);
@@ -846,6 +848,9 @@ function createService(opts) {
     corsOpen(res);
     if (m === 'OPTIONS') return sendEmpty(res, 204);
     if (!isLocal(ctx)) return refuseBody(req, res, 403, { error: 'local-only' });
+    if (s[1] === 'vetro' && s[2] === 'apps' && s.length === 3 && m === 'GET') {
+      return readVetroApps().then(function (result) { sendJSON(res, 200, result); });
+    }
     if (s[1] === 'state' && s.length === 2 && m === 'GET') return sendJSON(res, 200, localState(ctx.query.rev));
     if (s[1] === 'password' && s.length === 2 && m === 'POST') {
       req.resume();
@@ -1013,3 +1018,4 @@ function createService(opts) {
 }
 
 module.exports = { createService: createService, VERSION: VERSION, splitPath: splitPath };
+

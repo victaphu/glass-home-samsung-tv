@@ -75,6 +75,13 @@
     return current;
   };
 
+  D.vetroApps = function () {
+    return request('GET', withKey('/local/vetro/apps'), undefined, 28000).then(function (r) {
+      if (r.status !== 200 || !r.data) throw new Error('Vetro unavailable');
+      return r.data;
+    });
+  };
+
   // Fetches the state; resolves { state, changed, online }. The first fetch in
   // each run asks for the full state (no ?rev=), because the stored copy never
   // holds the password and the service only sends it with the full state.
@@ -140,3 +147,4 @@
 
   GH.data = D;
 }());
+

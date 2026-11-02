@@ -68,6 +68,7 @@ All in [`app/js/config.js`](app/js/config.js):
 | Setting | What it does |
 |---|---|
 | `apps` | The dock apps, in order. Each is found by its Tizen app ID, then by name. Remove what you don't have. `icon: false` shows a plain name tile. |
+| `vetroApps` | `true` starts with all apps from Vetro's Launcher list when available. Saved choices under **+ → Apps from Vetro** take precedence. Off by default; requires the photo service. |
 | `inputs` | HDMI ports as dock tiles, after the apps: `{ hdmi: 4, label: 'Games console' }`, optionally with an `icon` path under `app/`. `{ tv: true, label: 'Live TV' }` is the antenna (the TV's tuner). Empty by default. |
 | `weather` | Off until you set `enabled: true`, `latitude` and `longitude` (`place` is the label shown under the forecast; `temperatureUnit: 'fahrenheit'` for °F). |
 | `locale` | Date and time format, e.g. `'en-GB'`; empty uses the TV's. |
@@ -98,6 +99,28 @@ under **+** and sign in with the password shown there. Upload photos (up to
 and add websites or YouTube links (videos, playlists, Shorts, links with a
 start time). New photos appear next on the TV. The phone stays signed in for
 30 days.
+
+**Apps from Vetro (optional).** When [Vetro](https://github.com/andrearicci93/vetro)
+is running on the same TV and supplies a nonempty Launcher app list, **+**
+offers **Apps from Vetro**. Enable **Use Vetro apps**, choose **Select all** or
+individual apps with OK, then **Save**. Back or Cancel discards edits. Turn
+**Use Vetro apps** off to use the `apps` configuration. HDMI and Live TV inputs,
+photos and shortcuts keep their own settings.
+
+The list follows the apps Vetro identifies from Samsung Home. Settings, Home,
+input controls, Live TV and Glass Home itself are omitted; Samsung TV Plus is
+opened through its app. Vetro's list can be cached: after changing Samsung
+Home, update the list in Vetro's Launcher page, then reopen **+** (allow up to
+30 seconds for the local read cache). Apps added to the list later remain
+unselected until you choose them. If Vetro stops or the list cannot be read,
+saved apps and selections remain usable. Without a saved list, Glass Home
+uses its configured apps.
+
+Glass Home's existing service reads only `http://127.0.0.1:8099/dock`. It does
+not enable Vetro's launcher, start Vetro, send remote keys, or run commands.
+Launching selected apps uses Glass Home's normal Tizen launch methods;
+Vetro-specific launch actions such as its TizenTube workaround are not run.
+No Vetro installation is required for Glass Home's other features.
 
 **YouTube shortcuts** open the YouTube app at the video. On the tested TV the
 plain `watch?v=` link worked from a cold start and while YouTube was running;
@@ -192,6 +215,7 @@ node dev/test-netutil.js   # address rules (IPv4/IPv6, LAN, loopback, hosts)
 node dev/test-parsers.js   # hostile-page parsing stays fast
 node dev/test-limiter.js   # sign-in throttle and fair queue
 node dev/test-data.js      # TV app's service client
+node dev/test-vetro.js     # optional Vetro reader, selection and fallback
 node dev/test-ytparse.js   # YouTube link parser
 node dev/test-backdrop.js  # photo rotation
 node dev/lint-node12.js    # service code stays within the Node 12 API
@@ -229,3 +253,4 @@ iPhone camera, and wrote and tested the app. It also watched one cat video.
 
 [MIT](LICENSE). Photo and data credits: [CREDITS.md](CREDITS.md). Not affiliated
 with Samsung, Apple or any app shown.
+

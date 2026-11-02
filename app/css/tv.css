@@ -560,6 +560,27 @@ html.lite #wx-week {
 .menu-item.focused { background: rgba(255, 255, 255, 0.94); color: #0c0c0e; }
 .menu-item.disabled { opacity: 0.32; }
 
+/* ---------- Vetro app picker ---------- */
+#vetro-picker {
+  position: absolute;
+  left: 50%; top: 50%;
+  transform: translate(-50%, -50%);
+  width: 1100px;
+  padding: 44px 52px;
+  border-radius: 40px;
+  background: rgba(28, 28, 30, 0.96);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  box-shadow: 0 40px 120px rgba(0, 0, 0, 0.5);
+  display: none;
+  z-index: 8;
+}
+#vetro-picker.open { display: block; }
+#vetro-options { position: relative; max-height: 540px; overflow-y: auto; margin: 24px 0; }
+.vetro-option { display: flex; align-items: center; padding: 12px 20px; min-height: 58px; border-radius: 12px; font-size: 27px; cursor: pointer; }
+.vetro-option.focused { background: #f4f4f6; color: #151518; }
+.vetro-check { width: 28px; height: 28px; margin-right: 18px; border: 2px solid currentColor; border-radius: 5px; text-align: center; line-height: 24px; flex-shrink: 0; }
+.vetro-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
 /* ---------- + panel ---------- */
 #scrim {
   position: absolute;
@@ -747,3 +768,4 @@ html.still *, html.still *::before, html.still *::after { transition: none !impo
 html.lite .bg-layer img { will-change: auto; }
 /* smartHubLaunch (older TVs): frees graphics memory while an app starts. */
 html.launching #stage { display: none; }
+

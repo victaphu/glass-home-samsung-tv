@@ -32,7 +32,11 @@ jobs:
           node dev/test-parsers.js
           node dev/test-limiter.js
           node dev/test-data.js
+          node dev/test-vetro.js
       - name: Website and service API
         run: dev/test-api.sh
       - name: TV app and phone website in a browser
         run: node dev/ui-test.js
+      - name: Vetro app selection in a browser
+        run: node dev/ui-vetro-test.js
+
