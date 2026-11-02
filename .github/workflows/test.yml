@@ -32,6 +32,7 @@ jobs:
           node dev/test-parsers.js
           node dev/test-limiter.js
           node dev/test-data.js
+          node dev/test-compat.js
       - name: Website and service API
         run: dev/test-api.sh
       - name: TV app and phone website in a browser

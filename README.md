@@ -129,6 +129,7 @@ Reported by people running it. Thank you! To add yours, fill in a
 | Samsung S95B | 2022 | 6.5 | HDMI and Live TV tiles tested here | [#10](https://github.com/victaphu/glass-home-samsung-tv/pull/10), [#12](https://github.com/victaphu/glass-home-samsung-tv/pull/12) |
 | Samsung Q80A | 2021 | 6.0 | | [#9](https://github.com/victaphu/glass-home-samsung-tv/issues/9) |
 | Samsung QN90A | 2021 | 6.0 | needed the CSS fixes from #5, now included | [#4](https://github.com/victaphu/glass-home-samsung-tv/issues/4) |
+| Samsung Q70T | 2020 | 5.5 | the service runs on Node 4.4.3 here; needs the fallbacks in `app/service/compat.js` | |
 | Samsung TU8000 | 2020 | 5.5 | photo service included | [#3](https://github.com/victaphu/glass-home-samsung-tv/pull/3) |
 | Samsung NU6900 | 2018 | 4.0 | with `photoService: false` and `smartHubLaunch: true` | [#2](https://github.com/victaphu/glass-home-samsung-tv/issues/2) |
 
@@ -193,6 +194,7 @@ node dev/test-parsers.js   # hostile-page parsing stays fast
 node dev/test-limiter.js   # sign-in throttle and fair queue
 node dev/test-data.js      # TV app's service client
 node dev/test-ytparse.js   # YouTube link parser
+node dev/test-compat.js    # Node 4 fallbacks match the built-ins
 node dev/test-backdrop.js  # photo rotation
 node dev/lint-node12.js    # service code stays within the Node 12 API
 ```

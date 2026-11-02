@@ -1,8 +1,10 @@
 // Glass Home service - passwords, sessions and login throttling.
-// Node 12 API only: crypto.pbkdf2, randomBytes, timingSafeEqual, createHash.
+// Node 12 API only: crypto.pbkdf2, randomBytes, timingSafeEqual, createHash
+// (timingSafeEqual has a fallback for Node 4, see safeEqual).
 'use strict';
 var crypto = require('crypto');
 var WORDS = require('./words.js');
+var compat = require('./compat.js');
 
 var KEY_LEN = 32;
 var MAX_PASSWORD_LEN = 256;
@@ -41,10 +43,20 @@ function canonicalGenerated(pw) {
   return String(pw).trim().toLowerCase().replace(/[\s._\u2013\u2014-]+/g, '-');
 }
 
+// Constant-time compare of two equal-length buffers. Some TV Node runtimes
+// (a 2020 Q70T on Tizen 5.5) have no crypto.timingSafeEqual.
+function safeEqual(a, b) {
+  if (a.length !== b.length) return false;
+  if (typeof crypto.timingSafeEqual === 'function') return crypto.timingSafeEqual(a, b);
+  var diff = 0;
+  for (var i = 0; i < a.length; i++) diff |= a[i] ^ b[i];
+  return diff === 0;
+}
+
 function timingSafeEqualStr(a, b) {
   var ha = crypto.createHash('sha256').update(String(a)).digest();
   var hb = crypto.createHash('sha256').update(String(b)).digest();
-  return crypto.timingSafeEqual(ha, hb) && String(a).length === String(b).length;
+  return safeEqual(ha, hb) && String(a).length === String(b).length;
 }
 
 function hashPassword(plain, iterations, generated) {
@@ -72,10 +84,10 @@ function verifyPassword(attempt, rec) {
     var s = String(attempt == null ? '' : attempt);
     if (!s || s.length > MAX_PASSWORD_LEN) return resolve(false);
     var input = rec.generated ? canonicalGenerated(s) : s;
-    crypto.pbkdf2(input, Buffer.from(rec.salt, 'base64'), rec.iter, KEY_LEN, 'sha256', function (err, key) {
+    crypto.pbkdf2(input, compat.fromBase64(rec.salt), rec.iter, KEY_LEN, 'sha256', function (err, key) {
       if (err) return reject(err);
-      var expected = Buffer.from(rec.hash, 'base64');
-      resolve(key.length === expected.length && crypto.timingSafeEqual(key, expected));
+      var expected = compat.fromBase64(rec.hash);
+      resolve(safeEqual(key, expected));
     });
   });
 }
