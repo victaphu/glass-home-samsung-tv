@@ -13,7 +13,9 @@ let checks = 0;
 function check(value, message) { assert(value, message); checks++; }
 
 (async () => {
+  let requests = 0;
   const vetro = http.createServer((req, res) => {
+    requests++;
     assert.strictEqual(req.method, 'GET');
     assert.strictEqual(req.url, '/dock');
     res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -45,9 +47,15 @@ function check(value, message) { assert(value, message); checks++; }
       }
       throw new Error('Could not focus ' + label);
     }
-    await choose('#panel-buttons .pbtn', 'Apps from Vetro', K.RIGHT);
+    check(await tv.eval("document.querySelectorAll('#dock-row .tile-app').length === 2"), 'Vetro apps appear automatically on load');
+    check(await tv.eval("document.querySelector('#panel-app-buttons').getBoundingClientRect().top > document.querySelector('#panel-buttons').getBoundingClientRect().bottom"), 'app controls sit below New password / Done');
+    async function openPicker() {
+      await tv.key(K.DOWN);
+      await choose('#panel-app-buttons .pbtn', 'Choose apps', K.RIGHT);
+    }
+    await openPicker();
     check(await tv.eval("document.querySelector('#vetro-picker').classList.contains('open')"), 'remote opens picker');
-    check(await tv.eval("document.querySelector('#vetro-options [role=checkbox]').getAttribute('aria-checked') === 'false'"), 'optional mode starts off');
+    check(await tv.eval("![...document.querySelectorAll('.vetro-label')].some(e => e.textContent === 'Use Vetro apps')"), 'picker has no enable toggle');
     check(await tv.eval("[...document.querySelectorAll('.vetro-label')].some(e => e.textContent === 'Spotify')"), 'unknown configured apps can be selected');
     check(await tv.eval("![...document.querySelectorAll('.vetro-label')].some(e => /Samsung Home|Glass Home/.test(e.textContent))"), 'controls and self omitted');
     fs.mkdirSync(path.join(ROOT, 'preview'), { recursive: true });
@@ -62,23 +70,24 @@ function check(value, message) { assert(value, message); checks++; }
     check(await tv.eval("window.testLaunch === 'org.tizen.netflix-app'"), 'selected app uses its launch ID');
     await tv.goto(base + '&panel=1', 1800);
     check(await tv.eval("document.querySelectorAll('#dock-row .tile-app').length === 2"), 'selection survives reload');
-    await choose('#panel-buttons .pbtn', 'Apps from Vetro', K.RIGHT);
+    await openPicker();
     await choose('.vetro-option', 'Clear selection', K.DOWN);
     await tv.key(K.BACK);
     await tv.key(K.BACK);
     check(await tv.eval("document.querySelectorAll('#dock-row .tile-app').length === 2"), 'Back cancels draft changes');
     await tv.goto(base + '&panel=1', 1500);
-    await choose('#panel-buttons .pbtn', 'Apps from Vetro', K.RIGHT);
+    await openPicker();
     await choose('.vetro-option', 'Spotify', K.DOWN);
     await choose('.vetro-option', 'Save', K.DOWN);
     await tv.key(K.BACK);
     check(await tv.eval("document.querySelectorAll('#dock-row .tile-app').length === 1"), 'individual checkbox removes one app');
     await tv.goto(base + '&panel=1', 1500);
-    await choose('#panel-buttons .pbtn', 'Apps from Vetro', K.RIGHT);
-    await tv.key(K.ENTER);
-    await choose('.vetro-option', 'Save', K.DOWN);
-    await tv.key(K.BACK);
-    check(await tv.eval("document.querySelectorAll('#dock-row .tile-app').length === 6"), 'disable returns to configured apps');
+    await tv.key(K.DOWN);
+    const before = requests;
+    await choose('#panel-app-buttons .pbtn', 'Refresh apps', K.RIGHT);
+    await sleep(300);
+    check(requests > before, 'Refresh apps performs a new read without waiting for the cache');
+    check(await tv.eval("document.querySelectorAll('#dock-row .tile-app').length === 1"), 'refresh preserves the custom app selection');
     console.log(checks + ' Vetro browser checks passed');
   } finally {
     if (browser) await browser.close();

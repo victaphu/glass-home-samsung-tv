@@ -68,7 +68,6 @@ All in [`app/js/config.js`](app/js/config.js):
 | Setting | What it does |
 |---|---|
 | `apps` | The dock apps, in order. Each is found by its Tizen app ID, then by name. Remove what you don't have. `icon: false` shows a plain name tile. |
-| `vetroApps` | `true` starts with all apps from Vetro's Launcher list when available. Saved choices under **+ → Apps from Vetro** take precedence. Off by default; requires the photo service. |
 | `inputs` | HDMI ports as dock tiles, after the apps: `{ hdmi: 4, label: 'Games console' }`, optionally with an `icon` path under `app/`. `{ tv: true, label: 'Live TV' }` is the antenna (the TV's tuner). Empty by default. |
 | `weather` | Off until you set `enabled: true`, `latitude` and `longitude` (`place` is the label shown under the forecast; `temperatureUnit: 'fahrenheit'` for °F). |
 | `locale` | Date and time format, e.g. `'en-GB'`; empty uses the TV's. |
@@ -100,21 +99,23 @@ and add websites or YouTube links (videos, playlists, Shorts, links with a
 start time). New photos appear next on the TV. The phone stays signed in for
 30 days.
 
-**Apps from Vetro (optional).** When [Vetro](https://github.com/andrearicci93/vetro)
-is running on the same TV and supplies a nonempty Launcher app list, **+**
-offers **Apps from Vetro**. Enable **Use Vetro apps**, choose **Select all** or
-individual apps with OK, then **Save**. Back or Cancel discards edits. Turn
-**Use Vetro apps** off to use the `apps` configuration. HDMI and Live TV inputs,
-photos and shortcuts keep their own settings.
+**Apps from Vetro.** Glass Home checks for [Vetro](https://github.com/andrearicci93/vetro)
+on the same TV whenever it opens or returns to the foreground. When a Launcher
+app list is available, its apps appear automatically. Under **+**, **Choose
+apps** and **Refresh apps** sit below New password / Done. Choose individual
+apps with OK and select **Save**; Back or Cancel discards edits. **Select all**
+also includes new arrivals on later refreshes. A custom selection is preserved.
+HDMI and Live TV inputs, photos and shortcuts keep their own settings.
 
 The list follows the apps Vetro identifies from Samsung Home. Settings, Home,
 input controls, Live TV and Glass Home itself are omitted; Samsung TV Plus is
-opened through its app. Vetro's list can be cached: after changing Samsung
-Home, update the list in Vetro's Launcher page, then reopen **+** (allow up to
-30 seconds for the local read cache). Apps added to the list later remain
-unselected until you choose them. If Vetro stops or the list cannot be read,
-saved apps and selections remain usable. Without a saved list, Glass Home
-uses its configured apps.
+opened through its app. **Refresh apps** immediately re-reads Vetro's published
+list, bypassing Glass Home's 30-second read cache. Vetro itself may keep a cached
+list: this button does not rebuild it or restart Vetro's launcher. After changes
+to Samsung Home, Vetro must publish the updated list before Glass Home can see
+them. If Vetro stops or the list cannot be read, saved apps and selections remain
+usable. Without a saved list, Glass Home uses its configured apps. Discovery
+requires Glass Home's photo service; it also works with Vetro's launcher disabled.
 
 Glass Home's existing service reads only `http://127.0.0.1:8099/dock`. It does
 not enable Vetro's launcher, start Vetro, send remote keys, or run commands.

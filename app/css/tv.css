@@ -580,6 +580,9 @@ html.lite #wx-week {
 .vetro-option.focused { background: #f4f4f6; color: #151518; }
 .vetro-check { width: 28px; height: 28px; margin-right: 18px; border: 2px solid currentColor; border-radius: 5px; text-align: center; line-height: 24px; flex-shrink: 0; }
 .vetro-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.panel-apps { margin-top: 22px; }
+.panel-apps .panel-buttons { margin-top: 0; }
+#panel-app-status { margin-top: 12px; }
 
 /* ---------- + panel ---------- */
 #scrim {

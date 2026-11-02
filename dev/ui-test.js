@@ -152,6 +152,7 @@ async function tvState(p) {
     check('the password is not written to localStorage', stored.length === 0, stored);
     // YouTube link mode switch (bottom row)
     await tv.key(K.DOWN);
+    await tv.key(K.DOWN);
     await tv.key(K.ENTER);
     const ytm = await tv.eval(`document.querySelector('#panel .pbtn.small').textContent`);
     check('YouTube link mode switch cycles', /payload \+ URL/.test(ytm), ytm);
@@ -353,3 +354,4 @@ async function tvState(p) {
   console.log('\n' + pass + ' passed, ' + fail + ' failed');
   process.exit(fail ? 1 : 0);
 })().catch((e) => { console.error(e); process.exit(2); });
+

@@ -62,8 +62,8 @@
   var menuFocus = 0;
   var panelButtons = [];
   var panelFocus = 0;
-  var panelRowFocus = 0;
-  var pickerRows = [], pickerFocus = 0, pickerEnabled = false, pickerIds = [], pickerEntries = [];
+  var panelRowFocus = {};
+  var pickerRows = [], pickerFocus = 0, pickerIds = [], pickerEntries = [];
   var confirmNewPw = 0;
   var waitEnterRelease = false;
   var releaseTimer = null;
@@ -585,17 +585,24 @@
     if (free) bits.push(free);
     $('panel-stats').textContent = bits.join('  ·  ');
 
+    var priorButton = panelButtons[panelFocus] && panelButtons[panelFocus].id;
     panelButtons = [];
     panelButtons.push({ id: 'newpw', label: confirmNewPw ? 'Press OK again to confirm' : 'New password', cls: confirmNewPw ? 'armed' : '' });
     if (hidden.length) panelButtons.push({ id: 'unhide', label: 'Show hidden apps (' + hidden.length + ')' });
-    if (V.available || V.entries.length) panelButtons.push({ id: 'vetro', label: 'Apps from Vetro' });
     panelButtons.push({ id: 'close', label: 'Done' });
-    panelButtons.push({ id: 'ytmode', label: 'YouTube links: ' + YT_MODE_NAMES[ytMode], small: true });
+    if (V.entries.length) panelButtons.push({ id: 'vetro', label: 'Choose apps', row: 1 });
+    panelButtons.push({ id: 'vetro-refresh', label: V.loading ? 'Checking apps…' : 'Refresh apps', row: 1 });
+    panelButtons.push({ id: 'ytmode', label: 'YouTube links: ' + YT_MODE_NAMES[ytMode], small: true, row: 2 });
+    panelButtons.forEach(function (b, i) { if (b.id === priorButton) panelFocus = i; });
     panelFocus = clamp(panelFocus, 0, panelButtons.length - 1);
-    panelRowFocus = clamp(panelRowFocus, 0, panelButtons.length - 2);
 
     var wrap = $('panel-buttons');
     wrap.textContent = '';
+    $('panel-app-buttons').textContent = '';
+    $('panel-app-status').textContent = V.loading ? 'Checking Vetro on this TV…'
+      : V.available ? 'Apps from Vetro · ' + V.definitions().length + ' selected'
+      : V.entries.length ? 'Vetro unavailable · using your saved app list'
+      : 'Using configured apps · no Vetro app list available';
     var diag = $('panel-diag');
     diag.textContent = '';
     var svc = st && st.service;
@@ -613,6 +620,7 @@
       var e = div('pbtn' + (b.small ? ' small' : '') + (b.cls ? ' ' + b.cls : '') + (i === panelFocus ? ' focused' : ''), b.label);
       b.el = e;
       if (b.small) diag.appendChild(e);
+      else if (b.row === 1) $('panel-app-buttons').appendChild(e);
       else wrap.appendChild(e);
     });
     diag.appendChild(div('diag-text', line));
@@ -626,6 +634,7 @@
     mode = 'panel';
     confirmNewPw = 0;
     panelFocus = 0;
+    panelButtons = [];
     renderPanel();
     scrim.classList.add('open');
     panel.classList.add('open');
@@ -649,6 +658,7 @@
     if (!b) return;
     if (b.id === 'close') { closePanel(); return; }
     if (b.id === 'vetro') { openVetroPicker(); return; }
+    if (b.id === 'vetro-refresh') { if (!V.loading) refreshVetro(true, true); return; }
     if (b.id === 'unhide') {
       hidden = [];
       ls.set('gh.hidden', hidden);
@@ -683,10 +693,12 @@
   }
 
   // ---------- optional Vetro app selection ----------
-  function refreshVetro() {
+  function refreshVetro(force, announce) {
     if (!photoService) return Promise.resolve();
     var firstImport = V.entries.length === 0;
-    return V.refresh().then(function () {
+    var pending = V.refresh(force);
+    if (mode === 'panel') renderPanel();
+    return pending.then(function () {
       if (firstImport && V.active()) {
         var keys = V.definitions().map(function (d) { return d.key; });
         hidden = hidden.filter(function (k) { return keys.indexOf(k) < 0; });
@@ -694,11 +706,11 @@
       }
       resolveApps();
       if (mode === 'panel') renderPanel();
+      if (announce) toast(V.available ? 'App list refreshed' : V.entries.length ? 'Vetro unavailable. Keeping your saved apps.' : 'No Vetro app list is available.');
     });
   }
 
   function openVetroPicker() {
-    pickerEnabled = V.enabled;
     pickerIds = (V.selected || V.entries.map(function (e) { return e.appId; })).slice();
     pickerEntries = V.entries.slice();
     pickerFocus = 0;
@@ -722,7 +734,6 @@
       ? 'Choose apps from Vetro’s Samsung Home list. Your choices are saved on this TV.'
       : 'Vetro is unavailable. You can still use your saved app list.';
     pickerRows = [
-      { id: 'enabled', label: 'Use Vetro apps', checked: pickerEnabled },
       { id: 'all', label: 'Select all' },
       { id: 'none', label: 'Clear selection' }
     ];
@@ -761,23 +772,20 @@
     var r = pickerRows[pickerFocus];
     if (r.id === 'cancel') { closeVetroPicker(); return; }
     if (r.id === 'save') {
-      V.save(pickerEnabled, pickerIds);
+      var allSelected = pickerEntries.every(function (e) { return pickerIds.indexOf(e.appId) >= 0; });
+      V.save(allSelected ? null : pickerIds);
       // Explicit selection unhides chosen apps; retain unrelated input choices.
-      if (pickerEnabled) {
-        var keys = V.definitions().map(function (d) { return d.key; });
-        hidden = hidden.filter(function (k) { return keys.indexOf(k) < 0; });
-        ls.set('gh.hidden', hidden);
-      }
+      var keys = V.definitions().map(function (d) { return d.key; });
+      hidden = hidden.filter(function (k) { return keys.indexOf(k) < 0; });
+      ls.set('gh.hidden', hidden);
       resolveApps();
       closeVetroPicker();
       toast('App selection saved');
       return;
     }
-    if (r.id === 'enabled') pickerEnabled = !pickerEnabled;
-    if (r.id === 'all') { pickerEnabled = true; pickerIds = pickerEntries.map(function (e) { return e.appId; }); }
-    if (r.id === 'none') { pickerEnabled = true; pickerIds = []; }
+    if (r.id === 'all') pickerIds = pickerEntries.map(function (e) { return e.appId; });
+    if (r.id === 'none') pickerIds = [];
     if (r.id === 'app') {
-      pickerEnabled = true;
       var n = pickerIds.indexOf(r.appId);
       if (n < 0) pickerIds.push(r.appId); else pickerIds.splice(n, 1);
     }
@@ -822,17 +830,18 @@
     }
     if (mode === 'panel') {
       if (k === KEY.ENTER) { if (!e.repeat) panelAction(panelButtons[panelFocus]); return; }
-      // Buttons sit in one row; the small YouTube switch is alone below it.
-      var small = panelButtons.length - 1;
-      if (panelFocus === small) {
-        if (k === KEY.UP) panelFocus = panelRowFocus;
-      } else if (k === KEY.DOWN) {
-        panelRowFocus = panelFocus;
-        panelFocus = small;
-      } else if (k === KEY.LEFT) {
-        panelFocus = Math.max(0, panelFocus - 1);
-      } else if (k === KEY.RIGHT) {
-        panelFocus = Math.min(small - 1, panelFocus + 1);
+      var rowNumber = panelButtons[panelFocus].row || 0;
+      var rowButtons = panelButtons.filter(function (b) { return (b.row || 0) === rowNumber; });
+      var column = rowButtons.indexOf(panelButtons[panelFocus]);
+      panelRowFocus[rowNumber] = column;
+      if (k === KEY.LEFT || k === KEY.RIGHT) {
+        column = clamp(column + (k === KEY.LEFT ? -1 : 1), 0, rowButtons.length - 1);
+        panelFocus = panelButtons.indexOf(rowButtons[column]);
+      } else if (k === KEY.UP || k === KEY.DOWN) {
+        var nextRow = clamp(rowNumber + (k === KEY.UP ? -1 : 1), 0, 2);
+        var nextButtons = panelButtons.filter(function (b) { return (b.row || 0) === nextRow; });
+        var nextColumn = panelRowFocus[nextRow] === undefined ? column : panelRowFocus[nextRow];
+        panelFocus = panelButtons.indexOf(nextButtons[clamp(nextColumn, 0, nextButtons.length - 1)]);
       }
       renderPanelFocus();
       return;
@@ -968,7 +977,7 @@
     }).then(function (ok) {
       ensuring = false;
       serviceUp = !!ok;
-      if (ok) { refreshVetro(); return refresh(); }
+      if (ok) { refreshVetro(true); return refresh(); }
       if (mode === 'panel') renderPanel();
       if (!document.hidden) retryTimer = setTimeout(ensureService, 30000);
     });

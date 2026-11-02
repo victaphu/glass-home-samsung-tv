@@ -12,29 +12,26 @@
     }).slice(0, 100);
   }
   var V = {
-    enabled: typeof saved.enabled === 'boolean' ? saved.enabled : cfg.vetroApps === true,
     entries: valid(saved.entries),
     selected: Array.isArray(saved.selected) ? saved.selected.filter(function (s) { return typeof s === 'string'; }) : null,
     available: false,
     loading: false
   };
   var pending = null;
-  function persist() { ls.set('gh.vetro.v1', { enabled: V.enabled, entries: V.entries, selected: V.selected }); }
-  V.save = function (enabled, ids) {
-    V.enabled = !!enabled;
-    V.selected = ids.slice();
+  function persist() { ls.set('gh.vetro.v1', { entries: V.entries, selected: V.selected }); }
+  V.save = function (ids) {
+    V.selected = ids === null ? null : ids.slice();
     persist();
   };
-  V.refresh = function () {
+  V.refresh = function (refresh) {
     if (pending) return pending;
     V.loading = true;
-    pending = GH.data.vetroApps().then(function (result) {
+    pending = GH.data.vetroApps(refresh).then(function (result) {
       var entries = valid(result && result.apps);
       V.available = !!(result && result.available && entries.length);
       if (V.available) {
         V.entries = entries;
-        // The first import selects all. Later refreshes keep explicit choices.
-        if (V.selected === null) V.selected = entries.map(function (e) { return e.appId; });
+        // null means all apps, including new arrivals; explicit subsets persist.
         persist();
       }
     }, function () { V.available = false; }).then(function () {
@@ -43,7 +40,7 @@
     });
     return pending;
   };
-  V.active = function () { return V.enabled && V.entries.length > 0; };
+  V.active = function () { return V.entries.length > 0; };
   V.definitions = function () {
     if (!V.active()) return cfg.apps;
     return V.entries.filter(function (e) { return V.selected === null || V.selected.indexOf(e.appId) >= 0; }).map(function (e) {

@@ -849,7 +849,7 @@ function createService(opts) {
     if (m === 'OPTIONS') return sendEmpty(res, 204);
     if (!isLocal(ctx)) return refuseBody(req, res, 403, { error: 'local-only' });
     if (s[1] === 'vetro' && s[2] === 'apps' && s.length === 3 && m === 'GET') {
-      return readVetroApps().then(function (result) { sendJSON(res, 200, result); });
+      return readVetroApps(ctx.query.refresh === '1').then(function (result) { sendJSON(res, 200, result); });
     }
     if (s[1] === 'state' && s.length === 2 && m === 'GET') return sendJSON(res, 200, localState(ctx.query.rev));
     if (s[1] === 'password' && s.length === 2 && m === 'POST') {

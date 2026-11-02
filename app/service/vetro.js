@@ -65,8 +65,8 @@ function readApps(packageId) {
 // Coalesce requests and avoid repeatedly waking Vetro's catalog reader.
 function createReader(packageId) {
   var pending = null, cached = null, at = 0;
-  return function () {
-    if (cached && Date.now() - at < 30000) return Promise.resolve(cached);
+  return function (refresh) {
+    if (!refresh && cached && Date.now() - at < 30000) return Promise.resolve(cached);
     if (!pending) pending = readApps(packageId).catch(function () {
       return { available: false, apps: [] };
     }).then(function (result) {

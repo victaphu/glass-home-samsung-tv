@@ -75,8 +75,8 @@
     return current;
   };
 
-  D.vetroApps = function () {
-    return request('GET', withKey('/local/vetro/apps'), undefined, 28000).then(function (r) {
+  D.vetroApps = function (refresh) {
+    return request('GET', withKey('/local/vetro/apps' + (refresh ? '?refresh=1' : '')), undefined, 28000).then(function (r) {
       if (r.status !== 200 || !r.data) throw new Error('Vetro unavailable');
       return r.data;
     });
