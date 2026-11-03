@@ -25,6 +25,7 @@ var auth = require('./auth.js');
 var storeMod = require('./store.js');
 var yt = require('../js/ytparse.js');
 var vetro = require('./vetro.js');
+var dockPrefs = require('./dock-prefs.js');
 
 var VERSION = '1.0.0';
 var COOKIE = 'gh_sid';
@@ -204,7 +205,7 @@ function createService(opts) {
   function corsOpen(res) {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Headers', 'X-GH-Key, Content-Type');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
     res.setHeader('Access-Control-Max-Age', '600');
   }
 
@@ -850,6 +851,23 @@ function createService(opts) {
     corsOpen(res);
     if (m === 'OPTIONS') return sendEmpty(res, 204);
     if (!isLocal(ctx)) return refuseBody(req, res, 403, { error: 'local-only' });
+    if (s[1] === 'dock-preferences' && s.length === 2) {
+      var prefsFile = path.join(store.dir, 'dock-preferences.json');
+      if (m === 'GET') return sendJSON(res, 200, { preferences: dockPrefs.read(prefsFile) });
+      if (m === 'PUT') {
+        return readJSONBody(req, 65536).then(function (body) {
+          var prefs;
+          try { prefs = dockPrefs.validate(body.preferences); } catch (e) {
+            return sendJSON(res, 400, { error: 'bad-preferences' });
+          }
+          // Seed from the browser once. A delayed initial request must never
+          // overwrite choices already saved by another app instance.
+          var existing = body.initialize === true ? dockPrefs.read(prefsFile) : null;
+          var saved = existing || dockPrefs.write(prefsFile, prefs);
+          sendJSON(res, 200, { ok: true, preferences: saved });
+        }).catch(function (e) { bodyError(res, e); });
+      }
+    }
     if (s[1] === 'vetro' && s[2] === 'apps' && s.length === 3 && m === 'GET') {
       return readVetroApps(ctx.query.refresh === '1').then(function (result) { sendJSON(res, 200, result); });
     }
@@ -890,7 +908,7 @@ function createService(opts) {
       if (top === 'health' && segs.length === 1) {
         corsOpen(res);
         if (ctx.method === 'OPTIONS') return sendEmpty(res, 204);
-        return sendJSON(res, 200, { ok: true, name: 'Glass Home', version: VERSION, vetroApps: vetro.version });
+        return sendJSON(res, 200, { ok: true, name: 'Glass Home', version: VERSION, vetroApps: vetro.version, dockPreferences: 1 });
       }
       if (top === 'local') return handleLocal(ctx);
       if (top === 'media') {

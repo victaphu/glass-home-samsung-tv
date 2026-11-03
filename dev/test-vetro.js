@@ -36,7 +36,14 @@ function client(stored, config, response) {
   const GH = {
     config: Object.assign({ apps: [{ key: 'netflix', label: 'Netflix', ids: ['org.tizen.netflix-app'], names: ['^netflix$'], storeId: '11101200001' }] }, config),
     ls: { get: k => stored[k], set: (k, v) => { stored[k] = JSON.parse(JSON.stringify(v)); } },
-    data: { vetroApps: () => response() }
+    data: {
+      vetroApps: () => response(),
+      dockPreferences: () => Promise.resolve(stored.preferences || null),
+      saveDockPreferences: (prefs, initialize) => {
+        if (!initialize || !stored.preferences) stored.preferences = JSON.parse(JSON.stringify(prefs));
+        return Promise.resolve(stored.preferences);
+      }
+    }
   };
   vm.runInNewContext(fs.readFileSync(path.join(root, 'app/js/vetro-apps.js'), 'utf8'), { window: { GH } });
   return GH.vetro;
@@ -90,13 +97,13 @@ function simulatedReader(options) {
   equal(V.definitions().map(d => d.key), ['netflix'], 'configured list is used before discovery');
   await V.refresh();
   equal(V.definitions().length, 3, 'discovery automatically selects all apps');
-  V.save(['test.Spotify', 'org.tizen.netflix-app']);
+  await V.save(['test.Spotify', 'org.tizen.netflix-app']);
   equal(V.definitions().map(d => d.label), ['Netflix', 'Spotify'], 'Samsung order, independent of click order');
   equal(V.definitions()[0].storeId, '11101200001', 'known apps retain launch metadata');
   V = client(store, {}, () => Promise.reject(new Error('offline')));
   await V.refresh();
   equal(V.definitions().map(d => d.label), ['Netflix', 'Spotify'], 'selection and apps survive restart with Vetro offline');
-  V.save([]);
+  await V.save([]);
   equal(V.definitions(), [], 'empty selection is intentional, not a fallback');
   store = {};
   V = client(store, {}, () => Promise.resolve(reply));
@@ -106,7 +113,7 @@ function simulatedReader(options) {
   reply = { available: true, apps: expected.concat({ appId: 'test.New', label: 'New' }) };
   await V.refresh();
   equal(V.definitions().length, 4, 'all-apps selection follows new arrivals');
-  V.save(['test.Spotify']);
+  await V.save(['test.Spotify']);
   await V.refresh(true);
   equal(V.definitions().map(d => d.label), ['Spotify'], 'explicit subset survives a refresh');
   reply = { available: false, apps: [] };

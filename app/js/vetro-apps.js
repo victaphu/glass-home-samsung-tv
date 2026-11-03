@@ -2,7 +2,7 @@
 (function () {
   'use strict';
   var GH = window.GH, cfg = GH.config, ls = GH.ls;
-  var saved = ls.get('gh.vetro.v1') || {};
+  var saved = ls.get('gh.vetro.v1') || {}, savedHidden = ls.get('gh.hidden');
   function valid(list) {
     var seen = Object.create(null);
     return (Array.isArray(list) ? list : []).filter(function (e) {
@@ -14,20 +14,51 @@
   var V = {
     entries: valid(saved.entries),
     selected: Array.isArray(saved.selected) ? saved.selected.filter(function (s) { return typeof s === 'string'; }) : null,
+    hidden: Array.isArray(savedHidden) ? savedHidden.slice() : [],
+    preferencesReady: false,
+    preferencesError: false,
+    saving: false,
     available: false,
     loading: false,
     error: null
   };
   var pending = null;
+  var restoring = null;
   function persist() { ls.set('gh.vetro.v1', { entries: V.entries, selected: V.selected }); }
-  V.save = function (ids) {
-    V.selected = ids === null ? null : ids.slice();
+  function applyPreferences(prefs) {
+    if (!prefs || !(prefs.selected === null || Array.isArray(prefs.selected)) || !Array.isArray(prefs.hidden)) throw new Error('invalid preferences');
+    V.selected = prefs.selected === null ? null : prefs.selected.slice();
+    V.hidden = prefs.hidden.slice();
     persist();
+    ls.set('gh.hidden', V.hidden);
+  }
+  V.loadPreferences = function () {
+    if (V.preferencesReady) return Promise.resolve();
+    if (restoring) return restoring;
+    restoring = GH.data.dockPreferences().then(function (prefs) {
+      return prefs === null ? GH.data.saveDockPreferences({ selected: V.selected, hidden: V.hidden }, true) : prefs;
+    }).then(function (prefs) {
+      applyPreferences(prefs);
+      V.preferencesReady = true;
+      V.preferencesError = false;
+      restoring = null;
+    }).catch(function (err) { V.preferencesError = true; restoring = null; throw err; });
+    return restoring;
+  };
+  V.save = function (ids, hidden) {
+    if (!V.preferencesReady || V.saving) return Promise.reject(new Error('preferences not ready'));
+    V.saving = true;
+    return GH.data.saveDockPreferences({ selected: ids === null ? null : ids.slice(), hidden: (hidden || V.hidden).slice() }).then(function (prefs) {
+      applyPreferences(prefs);
+      V.saving = false;
+    }).catch(function (err) { V.saving = false; throw err; });
   };
   V.refresh = function (refresh) {
     if (pending) return pending;
     V.loading = true;
-    pending = GH.data.vetroApps(refresh).then(function (result) {
+    pending = V.loadPreferences().catch(function () { /* use cached choices until retry */ }).then(function () {
+      return GH.data.vetroApps(refresh);
+    }).then(function (result) {
       var entries = valid(result && result.apps);
       V.available = !!(result && result.available && entries.length);
       V.error = V.available ? null : result && result.error || null;
@@ -61,9 +92,10 @@
     return ['Vetro', e.code, e.detail, e.message].filter(function (s) { return !!s; }).join(' · ').slice(0, 360);
   };
   V.active = function () { return V.entries.length > 0; };
-  V.definitions = function () {
+  V.definitions = function (selection) {
+    var selected = arguments.length ? selection : V.selected;
     if (!V.active()) return cfg.apps;
-    return V.entries.filter(function (e) { return V.selected === null || V.selected.indexOf(e.appId) >= 0; }).map(function (e) {
+    return V.entries.filter(function (e) { return selected === null || selected.indexOf(e.appId) >= 0; }).map(function (e) {
       var known = cfg.apps.filter(function (d) { return d.ids.indexOf(e.appId) >= 0; })[0];
       var def = { key: known ? known.key : 'vetro:' + e.appId, label: e.label, ids: [e.appId], names: [], fromVetro: true };
       if (known) {

@@ -22,6 +22,7 @@ function check(value, message) { assert(value, message); checks++; }
     res.end(JSON.stringify({ entries: [
       { slug: 'netflix', appId: 'org.tizen.netflix-app', label: 'Netflix' },
       { slug: 'spotify', appId: 'test.Spotify', label: 'Spotify' },
+      { slug: 'tvplus', appId: 'org.tizen.tv-viewer', label: 'Samsung TV Plus' },
       { slug: 'home', appId: 'sys:com.samsung.tv.csfs', label: 'Samsung Home', system: true },
       { slug: 'glass', appId: 'GlassHome1.GlassHome', label: 'Glass Home' }
     ] }));
@@ -47,7 +48,7 @@ function check(value, message) { assert(value, message); checks++; }
       }
       throw new Error('Could not focus ' + label);
     }
-    check(await tv.eval("document.querySelectorAll('#dock-row .tile-app').length === 2"), 'Vetro apps appear automatically on load');
+    check(await tv.eval("document.querySelectorAll('#dock-row .tile-app').length === 3"), 'Vetro apps appear automatically on load');
     check(await tv.eval("document.querySelector('#panel-app-buttons').getBoundingClientRect().top > document.querySelector('#panel-buttons').getBoundingClientRect().bottom"), 'app controls sit below New password / Done');
     async function openPicker() {
       await tv.key(K.DOWN);
@@ -64,41 +65,80 @@ function check(value, message) { assert(value, message); checks++; }
     await choose('.vetro-option', 'Save', K.DOWN);
     await tv.key(K.BACK);
     await sleep(300);
-    check(await tv.eval("document.querySelectorAll('#dock-row .tile-app').length === 2"), 'Select all adds both apps');
+    check(await tv.eval("document.querySelectorAll('#dock-row .tile-app').length === 3"), 'Select all adds every app');
     await tv.eval("window.testLaunch = null; const launch = GH.platform.launchApp; GH.platform.launchApp = function(id, storeId) { window.testLaunch = id; return launch(id, storeId); };");
     await tv.key(K.ENTER);
     check(await tv.eval("window.testLaunch === 'org.tizen.netflix-app'"), 'selected app uses its launch ID');
     await tv.goto(base + '&panel=1', 1800);
-    check(await tv.eval("document.querySelectorAll('#dock-row .tile-app').length === 2"), 'selection survives reload');
+    check(await tv.eval("document.querySelectorAll('#dock-row .tile-app').length === 3"), 'selection survives reload');
     await openPicker();
     await choose('.vetro-option', 'Clear selection', K.DOWN);
     await tv.key(K.BACK);
     await tv.key(K.BACK);
-    check(await tv.eval("document.querySelectorAll('#dock-row .tile-app').length === 2"), 'Back cancels draft changes');
+    check(await tv.eval("document.querySelectorAll('#dock-row .tile-app').length === 3"), 'Back cancels draft changes');
     await tv.goto(base + '&panel=1', 1500);
     await openPicker();
     await choose('.vetro-option', 'Spotify', K.DOWN);
     await choose('.vetro-option', 'Save', K.DOWN);
     await tv.key(K.BACK);
-    check(await tv.eval("document.querySelectorAll('#dock-row .tile-app').length === 1"), 'individual checkbox removes one app');
+    check(await tv.eval("document.querySelectorAll('#dock-row .tile-app').length === 2"), 'individual checkbox removes one app');
     await tv.goto(base + '&panel=1', 1500);
     await tv.key(K.DOWN);
     const before = requests;
     await choose('#panel-app-buttons .pbtn', 'Refresh apps', K.RIGHT);
     await sleep(300);
     check(requests > before, 'Refresh apps performs a new read without waiting for the cache');
-    check(await tv.eval("document.querySelectorAll('#dock-row .tile-app').length === 1"), 'refresh preserves the custom app selection');
+    check(await tv.eval("document.querySelectorAll('#dock-row .tile-app').length === 2"), 'refresh preserves the custom app selection');
     responseStatus = 503;
     await choose('#panel-app-buttons .pbtn', 'Refresh apps', K.RIGHT);
     await sleep(300);
     check(await tv.eval("document.querySelector('#panel-app-status').textContent.includes('HTTP 503')"), 'failed refresh shows the HTTP failure');
     check(await tv.eval("document.querySelector('.vetro-error').textContent.includes('HTTP 503')"), 'diagnostic includes the underlying error');
-    check(await tv.eval("document.querySelectorAll('#dock-row .tile-app').length === 1"), 'failed refresh retains selected apps');
+    check(await tv.eval("document.querySelectorAll('#dock-row .tile-app').length === 2"), 'failed refresh retains selected apps');
     check(await tv.eval("(() => { const r=document.querySelector('#panel').getBoundingClientRect(); return r.top >= 0 && r.bottom <= 1080; })()"), 'error diagnostic fits on screen');
     responseStatus = 200;
     await choose('#panel-app-buttons .pbtn', 'Refresh apps', K.RIGHT);
     await sleep(300);
     check(await tv.eval("!document.querySelector('.vetro-error')"), 'recovery clears the diagnostic');
+
+    await tv.goto(base + '&panel=1', 1500);
+    await openPicker();
+    await choose('.vetro-option', 'Samsung TV Plus', K.DOWN);
+    await choose('.vetro-option', 'Save', K.DOWN);
+    check(await tv.eval("document.querySelector('#toast').textContent === 'App selection saved'"), 'save confirmation follows successful storage');
+    await tv.goto(base + '&panel=1', 1500);
+    check(await tv.eval("document.querySelectorAll('#dock-row .tile-app').length === 1"), 'removing TV Plus persists');
+    await openPicker();
+    await choose('.vetro-option', 'Samsung TV Plus', K.DOWN);
+    await choose('.vetro-option', 'Save', K.DOWN);
+    await tv.eval("const stale = JSON.parse(localStorage.getItem('gh.vetro.v1')); stale.selected = ['org.tizen.netflix-app']; localStorage.setItem('gh.vetro.v1', JSON.stringify(stale)); localStorage.setItem('gh.hidden', JSON.stringify(['vetro:com.samsung.tv.tvPlusDeeplinker']));");
+    await tv.goto(base + '&panel=1', 1500);
+    check(await tv.eval("document.querySelectorAll('#dock-row .tile-app').length === 2"), 're-added TV Plus returns despite stale browser selection and hiding');
+    check(await tv.eval("GH.vetro.hidden.length === 0"), 'restoration uses the confirmed hidden choices');
+
+    await openPicker();
+    await choose('.vetro-option', 'Samsung TV Plus', K.DOWN);
+    await tv.eval("window.originalSave = GH.data.saveDockPreferences; GH.data.saveDockPreferences = function () { return Promise.reject(new Error('test write failure')); };");
+    await choose('.vetro-option', 'Save', K.DOWN);
+    check(await tv.eval("document.querySelector('#vetro-picker').classList.contains('open')"), 'failed save leaves picker open');
+    check(await tv.eval("document.querySelector('#toast').textContent.includes('Couldn’t save app selection')"), 'failed save reports failure instead of saved');
+    check(await tv.eval("document.querySelectorAll('#dock-row .tile-app').length === 2"), 'failed save keeps the confirmed dock');
+    await tv.eval("GH.data.saveDockPreferences = window.originalSave;");
+    await choose('.vetro-option', 'Save', K.DOWN);
+    check(await tv.eval("!document.querySelector('#vetro-picker').classList.contains('open')"), 'successful retry closes picker');
+    await tv.key(K.BACK);
+    await tv.key(K.ENTER, { hold: 850 });
+    await choose('.menu-item', 'Hide', K.DOWN);
+    check(await tv.eval("document.querySelectorAll('#dock-row .tile-app').length === 0"), 'Hide waits for confirmed settings');
+    await tv.goto(base + '&panel=1', 1500);
+    check(await tv.eval("document.querySelectorAll('#dock-row .tile-app').length === 0"), 'hidden app stays hidden after restart');
+    await tv.key(K.DOWN);
+    await choose('#panel-app-buttons .pbtn', 'Refresh apps', K.RIGHT);
+    check(await tv.eval("document.querySelectorAll('#dock-row .tile-app').length === 0"), 'refresh preserves hidden app');
+    await tv.goto(base + '&panel=1', 1500);
+    await choose('#panel-buttons .pbtn', 'Show hidden apps (1)', K.RIGHT);
+    await tv.goto(base + '&panel=1', 1500);
+    check(await tv.eval("document.querySelectorAll('#dock-row .tile-app').length === 1"), 'unhide persists across restart');
     console.log(checks + ' Vetro browser checks passed');
   } finally {
     if (browser) await browser.close();

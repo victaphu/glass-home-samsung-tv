@@ -79,7 +79,6 @@
   var pollTimer = null;
   var retryTimer = null;
   var storage = null;
-  var hidden = ls.get('gh.hidden') || [];
   var appOrder = ls.get('gh.appOrder') || [];
   var inputOrder = ls.get('gh.inputOrder') || [];
   var ytMode = ls.get('gh.ytMode') || cfg.youtubeMode;
@@ -176,14 +175,14 @@
       var a = apps[k];
       // Hidden apps come back from +, so without the photo service (no +)
       // nothing stays hidden.
-      if (!a || (photoService && hidden.indexOf(k) >= 0)) return;
+      if (!a || (photoService && V.hidden.indexOf(k) >= 0)) return;
       list.push({ kind: 'app', key: 'app:' + k, appKey: k, label: defByKey[k].label, id: a.id,
         storeId: defByKey[k].storeId,
         icon: defByKey[k].icon === false ? null : (defByKey[k].icon || P.iconUrl(a.iconPath)) });
     });
     orderedInputs().forEach(function (inp) {
       var k = inputKey(inp);
-      if (photoService && hidden.indexOf(k) >= 0) return;    // as for apps
+      if (photoService && V.hidden.indexOf(k) >= 0) return;    // as for apps
       list.push({ kind: 'input', key: k, appKey: k, label: inp.label, hdmi: inp.hdmi, tv: !!inp.tv, icon: inp.icon || null });
     });
     if (!photoService) return list;
@@ -549,11 +548,23 @@
     });
   }
 
+  function canSaveAppChoices() {
+    if (V.saving) { toast('Saving app choices…'); return false; }
+    if (!V.preferencesReady) {
+      toast('App choices could not be loaded. Use Refresh apps to retry.');
+      return false;
+    }
+    return true;
+  }
+
   function hideApp(it) {
-    if (hidden.indexOf(it.appKey) < 0) hidden.push(it.appKey);
-    ls.set('gh.hidden', hidden);
-    rebuildDock();
-    toast(it.label + ' hidden. Show it again from + on the dock.');
+    if (!canSaveAppChoices()) return;
+    var next = V.hidden.slice();
+    if (next.indexOf(it.appKey) < 0) next.push(it.appKey);
+    V.save(V.selected, next).then(function () {
+      rebuildDock();
+      toast(it.label + ' hidden. Show it again from + on the dock.');
+    }, function () { toast('Couldn’t save app choices. Try again.'); });
   }
 
   function removeShortcut(it) {
@@ -588,7 +599,7 @@
     var priorButton = panelButtons[panelFocus] && panelButtons[panelFocus].id;
     panelButtons = [];
     panelButtons.push({ id: 'newpw', label: confirmNewPw ? 'Press OK again to confirm' : 'New password', cls: confirmNewPw ? 'armed' : '' });
-    if (hidden.length) panelButtons.push({ id: 'unhide', label: 'Show hidden apps (' + hidden.length + ')' });
+    if (V.hidden.length) panelButtons.push({ id: 'unhide', label: 'Show hidden apps (' + V.hidden.length + ')' });
     panelButtons.push({ id: 'close', label: 'Done' });
     if (V.entries.length) panelButtons.push({ id: 'vetro', label: 'Choose apps', row: 1 });
     panelButtons.push({ id: 'vetro-refresh', label: V.loading ? 'Checking apps…' : 'Refresh apps', row: 1 });
@@ -600,6 +611,7 @@
     wrap.textContent = '';
     $('panel-app-buttons').textContent = '';
     $('panel-app-status').textContent = V.loading ? 'Checking Vetro on this TV…'
+      : V.preferencesError ? 'App choices could not be loaded. Use Refresh apps to retry.'
       : V.available ? 'Apps from Vetro · ' + V.definitions().length + ' selected'
       : V.failureText() + (V.entries.length ? ' · using your saved app list' : ' · using configured apps');
     var diag = $('panel-diag');
@@ -662,12 +674,12 @@
     if (b.id === 'vetro') { openVetroPicker(); return; }
     if (b.id === 'vetro-refresh') { if (!V.loading) refreshVetro(true, true); return; }
     if (b.id === 'unhide') {
-      hidden = [];
-      ls.set('gh.hidden', hidden);
-      rebuildDock();
-      panelFocus = 0;
-      renderPanel();
-      toast('All apps are back on the dock');
+      if (!canSaveAppChoices()) return;
+      V.save(V.selected, []).then(function () {
+        rebuildDock();
+        if (mode === 'panel') { panelFocus = 0; renderPanel(); }
+        toast('All apps are back on the dock');
+      }, function () { toast('Couldn’t save app choices. Try again.'); });
       return;
     }
     if (b.id === 'ytmode') {
@@ -697,15 +709,9 @@
   // ---------- optional Vetro app selection ----------
   function refreshVetro(force, announce) {
     if (!photoService) return Promise.resolve();
-    var firstImport = V.entries.length === 0;
     var pending = V.refresh(force);
     if (mode === 'panel') renderPanel();
     return pending.then(function () {
-      if (firstImport && V.active()) {
-        var keys = V.definitions().map(function (d) { return d.key; });
-        hidden = hidden.filter(function (k) { return keys.indexOf(k) < 0; });
-        ls.set('gh.hidden', hidden);
-      }
       resolveApps();
       if (mode === 'panel') renderPanel();
       if (announce) toast(V.available ? 'App list refreshed' : V.failureText() + (V.entries.length ? '. Keeping your saved apps.' : '.'));
@@ -713,6 +719,7 @@
   }
 
   function openVetroPicker() {
+    if (!canSaveAppChoices()) return;
     pickerIds = (V.selected || V.entries.map(function (e) { return e.appId; })).slice();
     pickerEntries = V.entries.slice();
     pickerFocus = 0;
@@ -724,6 +731,7 @@
   }
 
   function closeVetroPicker() {
+    if (V.saving) return;
     $('vetro-picker').classList.remove('open');
     $('vetro-picker').setAttribute('aria-hidden', 'true');
     panel.classList.add('open');
@@ -742,7 +750,7 @@
     pickerEntries.forEach(function (e) {
       pickerRows.push({ id: 'app', appId: e.appId, label: e.label, checked: pickerIds.indexOf(e.appId) >= 0 });
     });
-    pickerRows.push({ id: 'save', label: 'Save' });
+    pickerRows.push({ id: 'save', label: V.saving ? 'Saving…' : 'Save' });
     pickerRows.push({ id: 'cancel', label: 'Cancel' });
     var wrap = $('vetro-options');
     var top = wrap.scrollTop;
@@ -750,6 +758,7 @@
     pickerRows.forEach(function (r, i) {
       var e = div('vetro-option' + (i === pickerFocus ? ' focused' : ''));
       e.setAttribute('role', r.checked === undefined ? 'button' : 'checkbox');
+      e.setAttribute('aria-disabled', String(V.saving));
       if (r.checked !== undefined) {
         e.setAttribute('aria-checked', String(r.checked));
         e.appendChild(div('vetro-check', r.checked ? '✓' : ''));
@@ -771,18 +780,25 @@
   }
 
   function activateVetroRow() {
+    if (V.saving) return;
     var r = pickerRows[pickerFocus];
     if (r.id === 'cancel') { closeVetroPicker(); return; }
     if (r.id === 'save') {
+      if (!canSaveAppChoices()) return;
       var allSelected = pickerEntries.every(function (e) { return pickerIds.indexOf(e.appId) >= 0; });
-      V.save(allSelected ? null : pickerIds);
+      var selected = allSelected ? null : pickerIds;
       // Explicit selection unhides chosen apps; retain unrelated input choices.
-      var keys = V.definitions().map(function (d) { return d.key; });
-      hidden = hidden.filter(function (k) { return keys.indexOf(k) < 0; });
-      ls.set('gh.hidden', hidden);
-      resolveApps();
-      closeVetroPicker();
-      toast('App selection saved');
+      var keys = V.definitions(selected).map(function (d) { return d.key; });
+      var nextHidden = V.hidden.filter(function (k) { return keys.indexOf(k) < 0; });
+      V.save(selected, nextHidden).then(function () {
+        resolveApps();
+        closeVetroPicker();
+        toast('App selection saved');
+      }, function () {
+        renderVetroPicker();
+        toast('Couldn’t save app selection. Try again.');
+      });
+      renderVetroPicker();
       return;
     }
     if (r.id === 'all') pickerIds = pickerEntries.map(function (e) { return e.appId; });

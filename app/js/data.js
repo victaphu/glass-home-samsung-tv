@@ -86,6 +86,20 @@
     });
   };
 
+  D.dockPreferences = function () {
+    return request('GET', withKey('/local/dock-preferences'), undefined, 6000).then(function (r) {
+      if (r.status !== 200 || !r.data || !Object.prototype.hasOwnProperty.call(r.data, 'preferences')) throw new Error('preferences unavailable');
+      return r.data.preferences;
+    });
+  };
+
+  D.saveDockPreferences = function (preferences, initialize) {
+    return request('PUT', withKey('/local/dock-preferences'), { preferences: preferences, initialize: initialize === true }, 8000).then(function (r) {
+      if (r.status !== 200 || !r.data || r.data.ok !== true || !r.data.preferences) throw new Error('preferences not saved');
+      return r.data.preferences;
+    });
+  };
+
   // Fetches the state; resolves { state, changed, online }. The first fetch in
   // each run asks for the full state (no ?rev=), because the stored copy never
   // holds the password and the service only sends it with the full state.
