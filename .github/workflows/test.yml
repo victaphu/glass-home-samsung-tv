@@ -34,6 +34,7 @@ jobs:
           node dev/test-data.js
           node dev/test-vetro.js
           node dev/test-dock-preferences.js
+          node dev/test-startup.js
       - name: Website and service API
         run: dev/test-api.sh
       - name: TV app and phone website in a browser

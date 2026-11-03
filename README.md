@@ -108,6 +108,8 @@ also includes new arrivals on later refreshes. A custom selection is preserved.
 Glass Home confirms a save after its service writes and verifies the selection
 and hidden-app settings in app storage. These choices are restored when Glass
 Home starts. If saving fails, the picker stays open so you can retry.
+The dock waits briefly for saved choices before displaying apps at startup.
+If the service is unavailable, cached apps remain usable.
 HDMI and Live TV inputs, photos and shortcuts keep their own settings.
 
 The list follows the apps Vetro identifies from Samsung Home. Settings, Home,
@@ -227,6 +229,7 @@ node dev/test-limiter.js   # sign-in throttle and fair queue
 node dev/test-data.js      # TV app's service client
 node dev/test-vetro.js     # optional Vetro reader, selection and fallback
 node dev/test-dock-preferences.js # confirmed saves and forced-restart persistence
+node dev/test-startup.js   # startup rendering, saved choices and offline fallback
 node dev/test-ytparse.js   # YouTube link parser
 node dev/test-backdrop.js  # photo rotation
 node dev/lint-node12.js    # service code stays within the Node 12 API

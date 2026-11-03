@@ -45,6 +45,9 @@
   // Older-TV switches (config.js). ?photoService=0 tries the first in preview.
   var photoService = cfg.photoService !== false && Q.photoService !== '0';
   var smartHubLaunch = cfg.smartHubLaunch === true;
+  var initialChoicesPending = photoService;
+  var initialChoicesTimer = null;
+  var initialFocus = Q.focus && /^\d+$/.test(Q.focus) ? +Q.focus : null;
 
   var defs = photoService ? V.definitions() : cfg.apps;
   var defByKey = {};
@@ -336,6 +339,9 @@
   }
 
   function rebuildDock(keepKey) {
+    // Cached selection/hiding may be stale after the TV stops the UI process.
+    // Keep the first dock empty until the service restores the saved choices.
+    if (initialChoicesPending) return;
     var wanted = keepKey || focusKey;
     items = buildItems();
     var seen = {};
@@ -707,8 +713,23 @@
   }
 
   // ---------- optional Vetro app selection ----------
+  function showRestoredChoices() {
+    initialChoicesPending = false;
+    clearTimeout(initialChoicesTimer);
+    // Refresh definitions before rendering cached app metadata, so removed
+    // apps cannot appear while installed-app discovery is still in flight.
+    resolveApps();
+    rebuildDock();
+    dock.style.visibility = '';
+    label.style.visibility = '';
+    dock.setAttribute('aria-busy', 'false');
+  }
+
   function refreshVetro(force, announce) {
     if (!photoService) return Promise.resolve();
+    // Restored choices can be displayed independently of the slower Vetro
+    // catalog read. A failed restore releases the cached/offline fallback.
+    if (initialChoicesPending || !V.preferencesReady) V.loadPreferences().then(showRestoredChoices, showRestoredChoices);
     var pending = V.refresh(force);
     if (mode === 'panel') renderPanel();
     return pending.then(function () {
@@ -813,6 +834,10 @@
   // ---------- keys ----------
   function onKeyDown(e) {
     var k = e.keyCode;
+    if (initialChoicesPending) {
+      if ([KEY.LEFT, KEY.RIGHT, KEY.UP, KEY.DOWN, KEY.ENTER, KEY.BACK, KEY.ESC, KEY.BACKSPACE].indexOf(k) >= 0) e.preventDefault();
+      return;
+    }
     if (k === KEY.BACK || k === KEY.ESC || (k === KEY.BACKSPACE && cfg.preview)) {
       e.preventDefault();
       if (mode === 'menu') closeMenu();
@@ -1019,6 +1044,7 @@
       if (found.youtube) P.setYouTubeId(found.youtube.id);
       ls.set('gh.apps.v1', { at: Date.now(), apps: found });
       rebuildDock();
+      if (!initialChoicesPending && initialFocus !== null) { setFocus(initialFocus); initialFocus = null; }
     });
   }
 
@@ -1083,6 +1109,14 @@
   }
 
   function init() {
+    if (initialChoicesPending) {
+      dock.style.visibility = 'hidden';
+      label.style.visibility = 'hidden';
+      dock.setAttribute('aria-busy', 'true');
+      // A missing or slow service must not leave the launcher unusable.
+      // The normal service retry will apply authoritative choices on recovery.
+      initialChoicesTimer = setTimeout(showRestoredChoices, 6000);
+    }
     if (Q.still === '1') document.documentElement.classList.add('still');
     fitStage();
     window.addEventListener('resize', fitStage);
@@ -1111,7 +1145,6 @@
     document.addEventListener('visibilitychange', onVisibility);
 
     loadMock().then(resolveApps).then(function () {
-      if (Q.focus && /^\d+$/.test(Q.focus)) setFocus(+Q.focus);
       ensureService();
       if (Q.panel === '1' && photoService) setTimeout(openPanel, 300);
       if (Q.menu === '1') setTimeout(openMenu, 300);

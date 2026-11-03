@@ -94,7 +94,12 @@
   V.active = function () { return V.entries.length > 0; };
   V.definitions = function (selection) {
     var selected = arguments.length ? selection : V.selected;
-    if (!V.active()) return cfg.apps;
+    if (!V.active()) {
+      if (!V.preferencesReady || selected === null) return cfg.apps;
+      return cfg.apps.filter(function (d) {
+        return d.ids.some(function (id) { return selected.indexOf(id) >= 0; });
+      });
+    }
     return V.entries.filter(function (e) { return selected === null || selected.indexOf(e.appId) >= 0; }).map(function (e) {
       var known = cfg.apps.filter(function (d) { return d.ids.indexOf(e.appId) >= 0; })[0];
       var def = { key: known ? known.key : 'vetro:' + e.appId, label: e.label, ids: [e.appId], names: [], fromVetro: true };
