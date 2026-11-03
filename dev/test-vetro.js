@@ -42,6 +42,44 @@ function client(stored, config, response) {
   return GH.vetro;
 }
 
+function simulatedReader(options) {
+  let now = 0;
+  const calls = [], durations = [], timers = new Map();
+  const network = { exports: {} }, module = { exports: {} };
+  vm.runInNewContext(fs.readFileSync(path.join(root, 'app/service/netutil.js'), 'utf8'), {
+    module: network, require: () => ({ networkInterfaces: () => {
+      if (options.interfaceError) throw new Error('interfaces unavailable');
+      return options.interfaces || {};
+    } })
+  });
+  vm.runInNewContext(fs.readFileSync(path.join(root, 'app/service/vetro.js'), 'utf8'), {
+    module, Buffer, Date: { now: () => now },
+    require: name => name === './netutil' ? network.exports : { request: (request, onResponse) => {
+      calls.push(request);
+      const outcome = options.responses[request.hostname] || { error: 'ECONNREFUSED' };
+      const req = new EventEmitter();
+      req.destroy = () => {};
+      req.end = () => {
+        now += outcome.elapsed || 0;
+        if (outcome.hang) return;
+        if (outcome.error) {
+          req.emit('error', Object.assign(new Error('connect ' + outcome.error + ' ' + request.hostname), { code: outcome.error }));
+        } else {
+          const res = new EventEmitter();
+          res.statusCode = outcome.status || 200;
+          onResponse(res);
+          res.emit('data', outcome.body === undefined ? JSON.stringify(catalog) : outcome.body);
+          res.emit('end');
+        }
+      };
+      return req;
+    } },
+    setTimeout: (fn, delay) => { timers.set(fn, delay); durations.push(delay); return fn; },
+    clearTimeout: fn => timers.delete(fn)
+  });
+  return { reader: module.exports, calls, durations, timers };
+}
+
 (async () => {
   equal(vetro.appsFrom(catalog, 'GlassHome1'), expected, 'filter controls, inputs, duplicates, self and invalid IDs');
   assert.throws(() => vetro.appsFrom({}, 'GlassHome1')); checks++;
@@ -95,7 +133,7 @@ function client(stored, config, response) {
   let svc;
   const temp = path.join(__dirname, 'tmp', 'vetro-test-' + process.pid);
   try {
-    equal(await vetro.readApps('GlassHome1'), { available: true, apps: expected }, 'read real local HTTP response');
+    equal(await vetro.readApps('GlassHome1'), { available: true, apps: expected, address: '127.0.0.1' }, 'read real local HTTP response');
     equal(calls[0], ['GET', '/dock', null], 'fixed read-only request without browser Origin');
     const reader = vetro.createReader('GlassHome1');
     const before = calls.length;
@@ -131,12 +169,12 @@ function client(stored, config, response) {
     });
     await new Promise((resolve, reject) => svc.start(err => err ? reject(err) : resolve()));
     const endpoint = 'http://127.0.0.1:18393/local/vetro/apps';
-    equal((await (await fetch('http://127.0.0.1:18393/health')).json()).vetroApps, 2, 'health identifies the running reader revision');
+    equal((await (await fetch('http://127.0.0.1:18393/health')).json()).vetroApps, 3, 'health identifies the running reader revision');
     const authBefore = calls.length;
     equal((await fetch(endpoint)).status, 403, 'unauthenticated caller cannot read catalog');
     equal(calls.length, authBefore, 'unauthenticated request does not contact Vetro');
     const url = endpoint + '?k=' + encodeURIComponent(svc.localKey());
-    equal(await (await fetch(url)).json(), { available: true, apps: expected }, 'authenticated local channel returns catalog');
+    equal(await (await fetch(url)).json(), { available: true, apps: expected, address: '127.0.0.1' }, 'authenticated local channel returns catalog');
     const refreshBefore = calls.length;
     await fetch(url + '&refresh=1');
     equal(calls.length, refreshBefore + 1, 'refresh query causes another read from Vetro');
@@ -165,7 +203,7 @@ function client(stored, config, response) {
     };
     vm.runInNewContext(fs.readFileSync(path.join(root, 'app/service/vetro.js'), 'utf8'), {
       module: exports, Buffer,
-      require: () => ({ request: () => {
+      require: name => name === './netutil' ? { lanAddresses: () => [] } : ({ request: () => {
         if (scenario === 'setup') throw new TypeError('unsupported runtime option');
         return req;
       } }),
@@ -178,6 +216,104 @@ function client(stored, config, response) {
     equal(result.error.code, { setup: 'request', connection: 'connection', timeout: 'timeout' }[scenario], scenario + ' failure is reported');
     if (scenario === 'connection') equal(result.error.detail, 'EACCES', 'socket error code is retained');
     equal(timers.size, 0, scenario + ' deadline is released');
+  }
+
+  const v4 = address => ({ address, internal: false, family: 'IPv4' });
+  const interfaces = { eth0: [v4('192.168.84.19')], wlan0: [v4('10.1.2.3')] };
+  for (const code of ['EHOSTUNREACH', 'ENETUNREACH', 'EACCES', 'EPERM']) {
+    const test = simulatedReader({ interfaces, responses: {
+      '127.0.0.1': { error: code, elapsed: 1200 }, '192.168.84.19': {}
+    } });
+    equal(await test.reader.readApps('GlassHome1'), { available: true, apps: expected, address: '192.168.84.19' }, code + ' uses the same TV LAN address');
+    equal(test.calls.map(c => [c.hostname, c.localAddress, c.port, c.path, c.method]), [
+      ['127.0.0.1', '127.0.0.1', 8099, '/dock', 'GET'],
+      ['192.168.84.19', '192.168.84.19', 8099, '/dock', 'GET']
+    ], 'fixed read endpoint with source bound to each same-device destination');
+    equal(test.durations, [25000, 23800], 'fallback shares the remaining deadline');
+    equal(test.timers.size, 0, 'fallback releases timers');
+  }
+  for (const outcome of [{}, { status: 503 }, { status: 302 }, { body: 'invalid' }, { body: '{}' }, { body: '{"entries":[]}' }, { error: 'ECONNREFUSED' }]) {
+    const test = simulatedReader({ interfaces, responses: { '127.0.0.1': outcome } });
+    await test.reader.createReader('GlassHome1')();
+    equal(test.calls.map(c => c.hostname), ['127.0.0.1'], 'successful responses, HTTP/data failures and absent Vetro do not trigger LAN attempts');
+  }
+  for (const outcome of [{ status: 302 }, { status: 503 }, { body: 'invalid' }]) {
+    const test = simulatedReader({ interfaces, responses: {
+      '127.0.0.1': { error: 'EHOSTUNREACH' }, '192.168.84.19': outcome, '10.1.2.3': {}
+    } });
+    const result = await test.reader.createReader('GlassHome1')();
+    equal(result.error.code, outcome.status ? 'http' : 'json', 'LAN HTTP/data failure remains visible');
+    equal(test.calls.length, 2, 'LAN response does not follow redirects or continue to another address');
+  }
+  const second = simulatedReader({ interfaces, responses: {
+    '127.0.0.1': { error: 'EHOSTUNREACH' }, '192.168.84.19': { error: 'ECONNREFUSED' }, '10.1.2.3': {}
+  } });
+  equal((await second.reader.readApps('GlassHome1')).address, '10.1.2.3', 'a second assigned interface can provide the list');
+  equal(second.calls.length, 3, 'stop after the first reachable LAN endpoint');
+  const limited = simulatedReader({ interfaces: {
+    eth0: [v4('192.168.84.19'), v4('192.168.84.19'), v4('8.8.8.8'), v4('169.254.1.2'), v4('bad.example'), v4('192.168.1.999')],
+    lo: [{ address: '127.0.0.1', family: 4, internal: true }],
+    wlan0: [v4('10.1.2.3'), v4('172.20.0.2'), v4('172.20.0.3'), { address: '::1', family: 'IPv6', internal: false }]
+  }, responses: { '127.0.0.1': { error: 'EHOSTUNREACH' } } });
+  const limitedResult = await limited.reader.createReader('GlassHome1')();
+  equal(limited.calls.map(c => c.hostname), ['127.0.0.1', '192.168.84.19', '10.1.2.3', '172.20.0.2'], 'deduplicated assigned private IPv4 addresses only, at most three fallbacks');
+  equal(limitedResult.error.attempted, limited.calls.map(c => c.hostname), 'failure reports every attempted same-device address');
+  equal(limitedResult.error.address, '172.20.0.2', 'final error identifies the failing address');
+  const noInterfaces = simulatedReader({ interfaceError: true, responses: { '127.0.0.1': { error: 'EHOSTUNREACH' } } });
+  equal((await noInterfaces.reader.createReader('GlassHome1')()).error.detail, 'EHOSTUNREACH', 'interface discovery failure preserves the original connection error');
+  equal(noInterfaces.calls.length, 1, 'no invented LAN address when interfaces cannot be read');
+  const slow = simulatedReader({ interfaces, responses: { '127.0.0.1': { error: 'EHOSTUNREACH', elapsed: 24000 }, '192.168.84.19': { hang: true } } });
+  const slowResult = slow.reader.createReader('GlassHome1')();
+  await Promise.resolve();
+  equal(slow.durations, [25000, 1000], 'a slow first attempt leaves only the remaining second');
+  for (const fn of slow.timers.keys()) fn();
+  equal((await slowResult).error.code, 'timeout', 'a hung LAN read respects the shared deadline');
+  equal(slow.calls.length, 2, 'a timed-out read does not start another attempt');
+  equal(slow.timers.size, 0, 'timed-out fallback cleans up its timer');
+  const expired = simulatedReader({ interfaces, responses: { '127.0.0.1': { error: 'EHOSTUNREACH', elapsed: 25000 } } });
+  equal((await expired.reader.createReader('GlassHome1')()).error.code, 'timeout', 'no fallback after the total deadline');
+  equal(expired.calls.length, 1, 'expired budget does not open another socket');
+  const changingOptions = { interfaces: { eth0: [v4('192.168.84.19')] }, responses: {
+    '127.0.0.1': { error: 'EHOSTUNREACH' }, '192.168.84.19': {}, '10.1.2.3': {}
+  } };
+  const changing = simulatedReader(changingOptions), changingReader = changing.reader.createReader('GlassHome1');
+  equal((await changingReader()).address, '192.168.84.19', 'initial discovery uses the current address');
+  changingOptions.interfaces = { wlan0: [v4('10.1.2.3')] };
+  await changingReader();
+  equal(changing.calls.length, 2, 'cache avoids further probes');
+  equal((await changingReader(true)).address, '10.1.2.3', 'refresh rediscovers assigned addresses after a network change');
+
+  // Exercise an actual bound connection to this machine's private interface.
+  // Only the initial denied localhost attempt is simulated.
+  const own = require('../app/service/netutil.js').lanAddresses().find(e => /^(10\.|172\.|192\.168\.)/.test(e.address));
+  if (!own) {
+    console.log('SKIP real LAN socket check: this runtime cannot discover a private IPv4 interface');
+  } else {
+  let connection;
+  const lanServer = http.createServer((req, res) => {
+    connection = [req.socket.localAddress, req.socket.remoteAddress, req.url, req.headers['x-gh-key'] || null];
+    res.end(JSON.stringify(catalog));
+  });
+  await new Promise((resolve, reject) => { lanServer.once('error', reject); lanServer.listen(8099, own.address, resolve); });
+  try {
+    const module = { exports: {} };
+    vm.runInNewContext(fs.readFileSync(path.join(root, 'app/service/vetro.js'), 'utf8'), {
+      module, Buffer, setTimeout, clearTimeout,
+      require: name => name === './netutil' ? require('../app/service/netutil.js') : {
+        request: (options, cb) => {
+          if (options.hostname !== '127.0.0.1') return http.request(options, cb);
+          const req = new EventEmitter();
+          req.destroy = () => {};
+          req.end = () => req.emit('error', Object.assign(new Error('connect blocked'), { code: 'EHOSTUNREACH' }));
+          return req;
+        }
+      }
+    });
+    equal(await module.exports.readApps('GlassHome1'), { available: true, apps: expected, address: own.address }, 'real LAN fallback returns the catalog');
+    equal(connection, [own.address, own.address, '/dock', null], 'both real socket ends are on this host, with no local key forwarded');
+  } finally {
+    await new Promise(resolve => lanServer.close(resolve));
+  }
   }
   console.log(checks + ' Vetro checks passed');
 })().catch(err => { console.error(err); process.exitCode = 1; });

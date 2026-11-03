@@ -2,8 +2,9 @@
 // fixed, read-only request, not a proxy for Vetro's control or shell APIs.
 'use strict';
 var http = require('http');
+var netutil = require('./netutil');
 var APP_ID = /^[A-Za-z0-9_.-]{1,120}$/;
-var VERSION = 2;
+var VERSION = 3;
 
 function clean(value) {
   return String(value || '').replace(/[\u0000-\u001f\u007f]/g, ' ').slice(0, 240);
@@ -55,7 +56,7 @@ function appsFrom(data, packageId) {
   });
 }
 
-function readApps(packageId) {
+function requestApps(packageId, address, timeout) {
   return new Promise(function (resolve, reject) {
     var done = false;
     var timer;
@@ -65,17 +66,19 @@ function readApps(packageId) {
       done = true;
       clearTimeout(timer);
       if (err) {
+        err.vetro.address = address;
         reject(err);
         try { if (req) req.destroy(); } catch (e) { /* failure is already reported */ }
       }
-      else resolve(data);
+      else { data.address = address; resolve(data); }
     }
-    timer = setTimeout(function () { finish(failure('timeout')); }, 25000);
+    timer = setTimeout(function () { finish(failure('timeout')); }, timeout);
     try {
       // Register request errors before sending, using the same request/end
       // lifecycle as Glass Home's other HTTP client. Close this one-shot read.
       req = http.request({
-        hostname: '127.0.0.1', port: 8099, path: '/dock', method: 'GET',
+        hostname: address, localAddress: address, family: 4,
+        port: 8099, path: '/dock', method: 'GET',
         headers: { Accept: 'application/json', Connection: 'close' }
       }, function (res) {
         if (res.statusCode !== 200) { finish(failure('http', null, res.statusCode)); return; }
@@ -109,6 +112,49 @@ function readApps(packageId) {
       req.on('error', function (e) { finish(failure('connection', e)); });
       req.end();
     } catch (e) { finish(failure('request', e)); }
+  });
+}
+
+// Some TVs isolate package labels on 127.0.0.1 while permitting ordinary
+// networking through their LAN address. Use only addresses assigned to this
+// device, and bind the source to that same address. No discovery of other
+// devices, configurable remote hosts, redirects, or security-policy changes.
+function localLanAddresses() {
+  var addresses = [];
+  netutil.lanAddresses().forEach(function (entry) {
+    var ip = netutil.parseV4(entry.address);
+    if (!ip || !(ip[0] === 10 || (ip[0] === 172 && ip[1] >= 16 && ip[1] <= 31) ||
+        (ip[0] === 192 && ip[1] === 168))) return;
+    var address = ip.join('.');
+    if (addresses.indexOf(address) < 0) addresses.push(address);
+  });
+  return addresses.slice(0, 3);
+}
+
+function readApps(packageId) {
+  var until = Date.now() + 25000;
+  var attempted = ['127.0.0.1'];
+  return requestApps(packageId, attempted[0], 25000).catch(function (err) {
+    if (err.vetro.code !== 'connection' ||
+        ['EHOSTUNREACH', 'ENETUNREACH', 'EACCES', 'EPERM'].indexOf(err.vetro.detail) < 0) throw err;
+    var addresses;
+    try { addresses = localLanAddresses(); } catch (e) { throw err; }
+    function next(index, lastError) {
+      if (index >= addresses.length) throw lastError;
+      var remaining = until - Date.now();
+      if (remaining <= 0) throw failure('timeout');
+      attempted.push(addresses[index]);
+      return requestApps(packageId, addresses[index], remaining).catch(function (error) {
+        // A response means Vetro was reached; do not hide HTTP or data errors
+        // behind another request. All attempts share the 25-second deadline.
+        if (error.vetro.code !== 'connection') throw error;
+        return next(index + 1, error);
+      });
+    }
+    return next(0, err);
+  }).catch(function (err) {
+    err.vetro.attempted = attempted;
+    throw err;
   });
 }
 

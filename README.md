@@ -117,8 +117,10 @@ them. If Vetro stops or the list cannot be read, saved apps and selections remai
 usable. Without a saved list, Glass Home uses its configured apps. Discovery
 requires Glass Home's photo service; it also works with Vetro's launcher disabled.
 
-Glass Home's existing service reads only `http://127.0.0.1:8099/dock`. It does
-not enable Vetro's launcher, start Vetro, send remote keys, or run commands.
+Glass Home's service reads Vetro's `/dock` endpoint on port 8099. It tries
+localhost first; if the TV denies that connection, it automatically tries the
+TV's own private IPv4 addresses. No IP address setting is needed. All attempts
+share a 25-second deadline. The integration only reads the published app list.
 Launching selected apps uses Glass Home's normal Tizen launch methods;
 Vetro-specific launch actions such as its TizenTube workaround are not run.
 No Vetro installation is required for Glass Home's other features.
