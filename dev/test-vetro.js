@@ -6,6 +6,7 @@ const fs = require('fs');
 const path = require('path');
 const http = require('http');
 const vm = require('vm');
+const EventEmitter = require('events');
 const vetro = require('../app/service/vetro.js');
 const root = path.join(__dirname, '..');
 let checks = 0;
@@ -73,6 +74,14 @@ function client(stored, config, response) {
   reply = { available: false, apps: [] };
   await V.refresh();
   equal(V.definitions().map(d => d.label), ['Spotify'], 'an empty/unavailable list preserves usable saved apps');
+  reply.error = { code: 'connection', detail: 'EACCES', message: 'connect EACCES 127.0.0.1:8099' };
+  await V.refresh(true);
+  equal(V.failureText(), 'Could not connect to Vetro', 'a connection error is not described as an empty list');
+  assert.match(V.diagnostic(), /EACCES/); checks++;
+  equal(V.definitions().map(d => d.label), ['Spotify'], 'diagnostics preserve the selected apps');
+  reply = { available: true, apps: expected };
+  await V.refresh(true);
+  equal([V.error, V.diagnostic()], [null, ''], 'a successful refresh clears the error');
   V = client({ 'gh.vetro.v1': { entries: 'bad', selected: ['test.Bad'] } }, {}, () => Promise.resolve(reply));
   equal(V.definitions().map(d => d.key), ['netflix'], 'malformed stored list falls back');
 
@@ -96,11 +105,23 @@ function client(stored, config, response) {
     await reader(true);
     equal(calls.length - before, 2, 'explicit refresh bypasses the Glass Home read cache');
     response = 'not-json';
-    await assert.rejects(vetro.readApps('GlassHome1')); checks++;
+    await assert.rejects(vetro.readApps('GlassHome1'), e => e.vetro.code === 'json'); checks++;
+    response = '{}';
+    await assert.rejects(vetro.readApps('GlassHome1'), e => e.vetro.code === 'catalog'); checks++;
+    response = '{"entries":[]}';
+    const empty = await vetro.readApps('GlassHome1');
+    equal([empty.available, empty.apps, empty.error.code], [false, [], 'empty'], 'empty list is distinct from a connection failure');
     response = ' '.repeat(300 * 1024);
-    await assert.rejects(vetro.readApps('GlassHome1')); checks++;
+    await assert.rejects(vetro.readApps('GlassHome1'), e => e.vetro.code === 'size'); checks++;
     status = 302;
-    await assert.rejects(vetro.readApps('GlassHome1')); checks++;
+    await assert.rejects(vetro.readApps('GlassHome1'), e => e.vetro.code === 'http' && e.vetro.status === 302); checks++;
+    const errors = [];
+    const failedReader = vetro.createReader('GlassHome1', e => errors.push(e));
+    status = 503;
+    const failure = await failedReader(true);
+    equal([failure.available, failure.apps, failure.error.code, failure.error.status], [false, [], 'http', 503], 'reader preserves the HTTP error');
+    await failedReader();
+    equal(errors.length, 1, 'cached failure does not repeat diagnostic logging');
     status = 200;
     response = JSON.stringify(catalog);
     fs.mkdirSync(temp, { recursive: true });
@@ -110,6 +131,7 @@ function client(stored, config, response) {
     });
     await new Promise((resolve, reject) => svc.start(err => err ? reject(err) : resolve()));
     const endpoint = 'http://127.0.0.1:18393/local/vetro/apps';
+    equal((await (await fetch('http://127.0.0.1:18393/health')).json()).vetroApps, 2, 'health identifies the running reader revision');
     const authBefore = calls.length;
     equal((await fetch(endpoint)).status, 403, 'unauthenticated caller cannot read catalog');
     equal(calls.length, authBefore, 'unauthenticated request does not contact Vetro');
@@ -118,12 +140,44 @@ function client(stored, config, response) {
     const refreshBefore = calls.length;
     await fetch(url + '&refresh=1');
     equal(calls.length, refreshBefore + 1, 'refresh query causes another read from Vetro');
+    status = 503;
+    const apiFailure = await (await fetch(url + '&refresh=1')).json();
+    equal(apiFailure.error.status, 503, 'local endpoint includes the underlying error');
     equal((await fetch(url, { method: 'POST' })).status, 404, 'no mutation endpoint');
   } finally {
     if (svc) await new Promise(resolve => svc.stop(resolve));
     await new Promise(resolve => server.close(resolve));
     fs.rmSync(temp, { recursive: true, force: true });
   }
-  equal(await vetro.createReader('GlassHome1')(), { available: false, apps: [] }, 'missing Vetro is an optional unavailable source');
+  const missing = await vetro.createReader('GlassHome1')();
+  equal([missing.available, missing.apps, missing.error.code, missing.error.detail], [false, [], 'connection', 'ECONNREFUSED'], 'missing Vetro reports the connection error');
+
+  // A runtime may throw before a request exists, or while closing a failed
+  // request. Both must settle the read and release its deadline timer.
+  for (const scenario of ['setup', 'connection', 'timeout']) {
+    const timers = new Set();
+    let deadline;
+    const exports = { exports: {} };
+    const req = new EventEmitter();
+    req.destroy = () => { throw new Error('close failed'); };
+    req.end = () => {
+      if (scenario === 'connection') req.emit('error', Object.assign(new Error('permission denied'), { code: 'EACCES' }));
+    };
+    vm.runInNewContext(fs.readFileSync(path.join(root, 'app/service/vetro.js'), 'utf8'), {
+      module: exports, Buffer,
+      require: () => ({ request: () => {
+        if (scenario === 'setup') throw new TypeError('unsupported runtime option');
+        return req;
+      } }),
+      setTimeout: fn => { deadline = fn; timers.add(fn); return fn; },
+      clearTimeout: fn => timers.delete(fn)
+    });
+    const pending = exports.exports.createReader('GlassHome1')();
+    if (scenario === 'timeout') deadline();
+    const result = await pending;
+    equal(result.error.code, { setup: 'request', connection: 'connection', timeout: 'timeout' }[scenario], scenario + ' failure is reported');
+    if (scenario === 'connection') equal(result.error.detail, 'EACCES', 'socket error code is retained');
+    equal(timers.size, 0, scenario + ' deadline is released');
+  }
   console.log(checks + ' Vetro checks passed');
 })().catch(err => { console.error(err); process.exitCode = 1; });

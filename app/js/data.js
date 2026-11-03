@@ -77,7 +77,11 @@
 
   D.vetroApps = function (refresh) {
     return request('GET', withKey('/local/vetro/apps' + (refresh ? '?refresh=1' : '')), undefined, 28000).then(function (r) {
-      if (r.status !== 200 || !r.data) throw new Error('Vetro unavailable');
+      if (r.status !== 200 || !r.data) {
+        var err = new Error('Glass Home could not retrieve its app list.');
+        err.vetro = { code: 'service', detail: r.status ? 'HTTP ' + r.status : 'unreachable', message: err.message };
+        throw err;
+      }
       return r.data;
     });
   };

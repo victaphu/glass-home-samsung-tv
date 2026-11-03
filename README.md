@@ -123,6 +123,10 @@ Launching selected apps uses Glass Home's normal Tizen launch methods;
 Vetro-specific launch actions such as its TizenTube workaround are not run.
 No Vetro installation is required for Glass Home's other features.
 
+If an app-list refresh fails, the **+** panel reports the connection or data
+error. Its diagnostic line includes the request stage and runtime error code
+when available. Your saved app list, selection and hidden apps are retained.
+
 **YouTube shortcuts** open the YouTube app at the video. On the tested TV the
 plain `watch?v=` link worked from a cold start and while YouTube was running;
 Samsung's documented `PAYLOAD` deep link lost the video at YouTube's "Who's

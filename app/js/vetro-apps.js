@@ -15,7 +15,8 @@
     entries: valid(saved.entries),
     selected: Array.isArray(saved.selected) ? saved.selected.filter(function (s) { return typeof s === 'string'; }) : null,
     available: false,
-    loading: false
+    loading: false,
+    error: null
   };
   var pending = null;
   function persist() { ls.set('gh.vetro.v1', { entries: V.entries, selected: V.selected }); }
@@ -29,16 +30,35 @@
     pending = GH.data.vetroApps(refresh).then(function (result) {
       var entries = valid(result && result.apps);
       V.available = !!(result && result.available && entries.length);
+      V.error = V.available ? null : result && result.error || null;
       if (V.available) {
         V.entries = entries;
         // null means all apps, including new arrivals; explicit subsets persist.
         persist();
       }
-    }, function () { V.available = false; }).then(function () {
+    }, function (err) {
+      V.available = false;
+      V.error = err && err.vetro || { code: 'service', message: 'Glass Home could not retrieve its app list.' };
+    }).then(function () {
       V.loading = false; pending = null;
       return V;
     });
     return pending;
+  };
+  V.failureText = function () {
+    var e = V.error || {};
+    if (e.code === 'empty') return 'Vetro has no launchable apps';
+    if (e.code === 'timeout') return 'Vetro did not respond';
+    if (e.code === 'http') return 'Vetro returned HTTP ' + e.status;
+    if (e.code === 'connection' || e.code === 'request') return 'Could not connect to Vetro';
+    if (e.code === 'service') return 'Glass Home could not retrieve its app list';
+    if (e.code) return 'Could not read the Vetro app list';
+    return 'Vetro app list unavailable';
+  };
+  V.diagnostic = function () {
+    var e = V.error;
+    if (!e) return '';
+    return ['Vetro', e.code, e.detail, e.message].filter(function (s) { return !!s; }).join(' · ').slice(0, 360);
   };
   V.active = function () { return V.entries.length > 0; };
   V.definitions = function () {

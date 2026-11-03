@@ -601,8 +601,7 @@
     $('panel-app-buttons').textContent = '';
     $('panel-app-status').textContent = V.loading ? 'Checking Vetro on this TV…'
       : V.available ? 'Apps from Vetro · ' + V.definitions().length + ' selected'
-      : V.entries.length ? 'Vetro unavailable · using your saved app list'
-      : 'Using configured apps · no Vetro app list available';
+      : V.failureText() + (V.entries.length ? ' · using your saved app list' : ' · using configured apps');
     var diag = $('panel-diag');
     diag.textContent = '';
     var svc = st && st.service;
@@ -623,7 +622,10 @@
       else if (b.row === 1) $('panel-app-buttons').appendChild(e);
       else wrap.appendChild(e);
     });
-    diag.appendChild(div('diag-text', line));
+    var details = div('diag-details');
+    details.appendChild(div('diag-text', line));
+    if (V.error) details.appendChild(div('diag-text vetro-error', V.diagnostic()));
+    diag.appendChild(details);
   }
 
   function renderPanelFocus() {
@@ -706,7 +708,7 @@
       }
       resolveApps();
       if (mode === 'panel') renderPanel();
-      if (announce) toast(V.available ? 'App list refreshed' : V.entries.length ? 'Vetro unavailable. Keeping your saved apps.' : 'No Vetro app list is available.');
+      if (announce) toast(V.available ? 'App list refreshed' : V.failureText() + (V.entries.length ? '. Keeping your saved apps.' : '.'));
     });
   }
 

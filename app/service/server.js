@@ -123,7 +123,9 @@ function createService(opts) {
   Object.keys(fileCfg).forEach(function (k) { if (k in DEFAULTS) cfg[k] = fileCfg[k]; });
   Object.keys(opts.config || {}).forEach(function (k) { cfg[k] = opts.config[k]; });
   if (opts.port) cfg.port = opts.port;
-  var readVetroApps = vetro.createReader(cfg.packageId);
+  var readVetroApps = vetro.createReader(cfg.packageId, function (err) {
+    note('Vetro apps: ' + err.code + (err.detail ? ' (' + err.detail + ')' : '') + ' - ' + err.message);
+  });
 
   var hosts = opts.hosts || ['0.0.0.0'];
   var localKey = readLocalKey(appDir);
@@ -888,7 +890,7 @@ function createService(opts) {
       if (top === 'health' && segs.length === 1) {
         corsOpen(res);
         if (ctx.method === 'OPTIONS') return sendEmpty(res, 204);
-        return sendJSON(res, 200, { ok: true, name: 'Glass Home', version: VERSION });
+        return sendJSON(res, 200, { ok: true, name: 'Glass Home', version: VERSION, vetroApps: vetro.version });
       }
       if (top === 'local') return handleLocal(ctx);
       if (top === 'media') {

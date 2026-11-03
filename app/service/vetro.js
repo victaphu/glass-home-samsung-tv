@@ -3,6 +3,34 @@
 'use strict';
 var http = require('http');
 var APP_ID = /^[A-Za-z0-9_.-]{1,120}$/;
+var VERSION = 2;
+
+function clean(value) {
+  return String(value || '').replace(/[\u0000-\u001f\u007f]/g, ' ').slice(0, 240);
+}
+
+function failure(code, cause, status) {
+  var messages = {
+    timeout: 'Vetro did not respond within 25 seconds.',
+    request: 'The Vetro request could not be started.',
+    connection: 'The connection to Vetro failed.',
+    response: 'The Vetro response was interrupted.',
+    http: 'Vetro returned HTTP ' + status + '.',
+    size: 'The Vetro app list exceeds 256 KiB.',
+    body: 'The Vetro response could not be decoded.',
+    json: 'The Vetro response is not valid JSON.',
+    catalog: 'The Vetro response does not contain an app list.',
+    empty: 'Vetro has no launchable apps.'
+  };
+  var err = new Error(messages[code] || 'The Vetro app list could not be read.');
+  err.vetro = {
+    code: code,
+    detail: clean(cause && (cause.code || cause.name)),
+    message: clean(cause && cause.message || err.message)
+  };
+  if (status) err.vetro.status = status;
+  return err;
+}
 
 function appsFrom(data, packageId) {
   if (!data || !Array.isArray(data.entries)) throw new Error('list-unavailable');
@@ -36,40 +64,65 @@ function readApps(packageId) {
       if (done) return;
       done = true;
       clearTimeout(timer);
-      if (err) { if (req) req.destroy(); reject(new Error(err)); }
+      if (err) {
+        reject(err);
+        try { if (req) req.destroy(); } catch (e) { /* failure is already reported */ }
+      }
       else resolve(data);
     }
-    timer = setTimeout(function () { finish('unavailable'); }, 25000);
-    req = http.get({ hostname: '127.0.0.1', port: 8099, path: '/dock', agent: false }, function (res) {
-      if (res.statusCode !== 200) { res.resume(); finish('unavailable'); return; }
-      var chunks = [], size = 0;
-      res.on('data', function (chunk) {
-        size += chunk.length;
-        if (size > 256 * 1024) { res.destroy(); finish('invalid-list'); return; }
-        chunks.push(chunk);
+    timer = setTimeout(function () { finish(failure('timeout')); }, 25000);
+    try {
+      // Register request errors before sending, using the same request/end
+      // lifecycle as Glass Home's other HTTP client. Close this one-shot read.
+      req = http.request({
+        hostname: '127.0.0.1', port: 8099, path: '/dock', method: 'GET',
+        headers: { Accept: 'application/json', Connection: 'close' }
+      }, function (res) {
+        if (res.statusCode !== 200) { finish(failure('http', null, res.statusCode)); return; }
+        var chunks = [], size = 0;
+        res.on('data', function (chunk) {
+          if (done) return;
+          try {
+            var bytes = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+            size += bytes.length;
+            if (size > 256 * 1024) { finish(failure('size')); return; }
+            chunks.push(bytes);
+          } catch (e) { finish(failure('body', e)); }
+        });
+        res.on('error', function (e) { finish(failure('response', e)); });
+        res.on('aborted', function () { finish(failure('response')); });
+        res.on('end', function () {
+          if (done) return;
+          var stage = 'body';
+          try {
+            var text = Buffer.concat(chunks).toString('utf8');
+            stage = 'json';
+            var data = JSON.parse(text);
+            stage = 'catalog';
+            var apps = appsFrom(data, packageId);
+            var result = { available: apps.length > 0, apps: apps };
+            if (!apps.length) result.error = failure('empty').vetro;
+            finish(null, result);
+          } catch (e) { finish(failure(stage, e)); }
+        });
       });
-      res.on('error', function () { finish('unavailable'); });
-      res.on('aborted', function () { finish('unavailable'); });
-      res.on('end', function () {
-        if (done) return;
-        try {
-          var apps = appsFrom(JSON.parse(Buffer.concat(chunks).toString('utf8')), packageId);
-          finish(null, { available: apps.length > 0, apps: apps });
-        } catch (e) { finish('invalid-list'); }
-      });
-    });
-    req.on('error', function () { finish('unavailable'); });
+      req.on('error', function (e) { finish(failure('connection', e)); });
+      req.end();
+    } catch (e) { finish(failure('request', e)); }
   });
 }
 
 // Coalesce requests and avoid repeatedly waking Vetro's catalog reader.
-function createReader(packageId) {
+function createReader(packageId, onError) {
   var pending = null, cached = null, at = 0;
   return function (refresh) {
     if (!refresh && cached && Date.now() - at < 30000) return Promise.resolve(cached);
-    if (!pending) pending = readApps(packageId).catch(function () {
-      return { available: false, apps: [] };
+    if (!pending) pending = readApps(packageId).catch(function (err) {
+      return { available: false, apps: [], error: err.vetro || failure('request', err).vetro };
     }).then(function (result) {
+      if (result.error && onError) {
+        try { onError(result.error); } catch (e) { /* diagnostics must not break reads */ }
+      }
       cached = result; at = Date.now(); pending = null;
       return result;
     });
@@ -77,4 +130,4 @@ function createReader(packageId) {
   };
 }
 
-module.exports = { appsFrom: appsFrom, readApps: readApps, createReader: createReader };
+module.exports = { version: VERSION, appsFrom: appsFrom, readApps: readApps, createReader: createReader };

@@ -711,6 +711,9 @@ html.lite #wx-week {
   color: rgba(255, 255, 255, 0.46);
 }
 .panel-diag > * + * { margin-left: 18px; }
+.diag-details { flex: 1; min-width: 0; }
+.diag-details > * + * { margin-top: 8px; }
+.diag-text.vetro-error { -webkit-line-clamp: 3; word-wrap: break-word; }
 .pbtn.small {
   flex: none;
   padding: 10px 20px;

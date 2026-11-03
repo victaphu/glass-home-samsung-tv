@@ -13,12 +13,12 @@ let checks = 0;
 function check(value, message) { assert(value, message); checks++; }
 
 (async () => {
-  let requests = 0;
+  let requests = 0, responseStatus = 200;
   const vetro = http.createServer((req, res) => {
     requests++;
     assert.strictEqual(req.method, 'GET');
     assert.strictEqual(req.url, '/dock');
-    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.writeHead(responseStatus, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ entries: [
       { slug: 'netflix', appId: 'org.tizen.netflix-app', label: 'Netflix' },
       { slug: 'spotify', appId: 'test.Spotify', label: 'Spotify' },
@@ -88,6 +88,17 @@ function check(value, message) { assert(value, message); checks++; }
     await sleep(300);
     check(requests > before, 'Refresh apps performs a new read without waiting for the cache');
     check(await tv.eval("document.querySelectorAll('#dock-row .tile-app').length === 1"), 'refresh preserves the custom app selection');
+    responseStatus = 503;
+    await choose('#panel-app-buttons .pbtn', 'Refresh apps', K.RIGHT);
+    await sleep(300);
+    check(await tv.eval("document.querySelector('#panel-app-status').textContent.includes('HTTP 503')"), 'failed refresh shows the HTTP failure');
+    check(await tv.eval("document.querySelector('.vetro-error').textContent.includes('HTTP 503')"), 'diagnostic includes the underlying error');
+    check(await tv.eval("document.querySelectorAll('#dock-row .tile-app').length === 1"), 'failed refresh retains selected apps');
+    check(await tv.eval("(() => { const r=document.querySelector('#panel').getBoundingClientRect(); return r.top >= 0 && r.bottom <= 1080; })()"), 'error diagnostic fits on screen');
+    responseStatus = 200;
+    await choose('#panel-app-buttons .pbtn', 'Refresh apps', K.RIGHT);
+    await sleep(300);
+    check(await tv.eval("!document.querySelector('.vetro-error')"), 'recovery clears the diagnostic');
     console.log(checks + ' Vetro browser checks passed');
   } finally {
     if (browser) await browser.close();

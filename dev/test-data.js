@@ -146,6 +146,19 @@ const noPlainStored = (store, plain) => Object.keys(store).every((k) => String(s
     eq('New password before the first refresh: shown', t.D.passwordView().text, made);
   }
 
+  { // Preserve the app-service failure without copying its private request URL.
+    const svc = fakeService();
+    const t = boot({}, svc);
+    for (const up of [true, false]) {
+      svc.up = up;
+      let error;
+      try { await t.D.vetroApps(true); } catch (e) { error = e; }
+      eq('Vetro service failure detail', error && error.vetro.detail, up ? 'HTTP 404' : 'unreachable');
+      ok('Vetro diagnostic excludes the local key', error && JSON.stringify(error.vetro).indexOf('test-key') < 0);
+    }
+  }
+
   console.log(count + ' checks, ' + fails + ' failed');
   process.exit(fails ? 1 : 0);
 })().catch((e) => { console.error(e); process.exit(2); });
+
