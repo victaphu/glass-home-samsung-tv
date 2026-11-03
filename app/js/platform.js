@@ -111,9 +111,9 @@
 
   // Opens an installed app: through Samsung's launcher when a store ID is
   // given, else (or if that fails) launch(), then an app-control launch.
-  P.launchApp = function (id, storeId) {
+  function launchNativeApp(id, storeId) {
     if (!tz) return previewLaunch(id);
-    if (storeId) return smartHubLaunch(storeId).catch(function () { return P.launchApp(id); });
+    if (storeId) return smartHubLaunch(storeId).catch(function () { return launchNativeApp(id); });
     return new Promise(function (resolve, reject) {
       function viaAppControl(firstError) {
         try {
@@ -126,6 +126,17 @@
         tz.application.launch(id, function () { resolve('launch'); }, viaAppControl);
       } catch (e) { viaAppControl(e); }
     });
+  }
+
+  var pendingLaunch = null;
+  P.launchApp = function (id, storeId) {
+    if (!tz || !GH.vetro || !GH.vetro.available || !GH.data || !GH.data.vetroLaunch) return launchNativeApp(id, storeId);
+    if (pendingLaunch) return pendingLaunch.id === id ? pendingLaunch.promise : Promise.reject(new Error('Another app is still opening'));
+    var promise = GH.data.vetroLaunch(id).then(function (accepted) {
+      return accepted ? 'vetro' : launchNativeApp(id, storeId);
+    }).then(function (result) { pendingLaunch = null; return result; }, function (err) { pendingLaunch = null; throw err; });
+    pendingLaunch = { id: id, promise: promise };
+    return promise;
   };
 
   function normalizeUrl(raw) {
@@ -209,14 +220,14 @@
             if (live ? all[i].type === 'TV' : (all[i].type === 'HDMI' && all[i].number === n)) { src = all[i]; break; }
           }
           if (!src && live) {
-            P.launchApp('org.tizen.tv-viewer').then(function () { resolve('tv-viewer'); }, reject);
+            launchNativeApp('org.tizen.tv-viewer').then(function () { resolve('tv-viewer'); }, reject);
             return;
           }
           if (!src) { reject(new Error('HDMI ' + n + ' is not reported by the TV')); return; }
           try {
             tz.tvwindow.setSource(src, function () {
               // The input is already switched; the viewer only makes it full screen.
-              P.launchApp('org.tizen.tv-viewer').then(function () { resolve('input'); }, function () { resolve('input'); });
+              launchNativeApp('org.tizen.tv-viewer').then(function () { resolve('input'); }, function () { resolve('input'); });
             }, reject, 'MAIN');
           } catch (e) { reject(e); }
         }, reject);

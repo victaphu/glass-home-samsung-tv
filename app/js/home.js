@@ -451,23 +451,29 @@
     }, 8000);
   }
 
+  var openingApp = false;
   function activate(it) {
     if (!it) return;
+    if (openingApp) { toast('An app is still opening'); return; }
     if (it.kind === 'add') { openPanel(); return; }
     var p;
     var viaSmartHub = it.kind === 'app' && smartHubLaunch;
+    if (it.kind === 'app') openingApp = true;
+    if (it.kind === 'app' && GH.vetro && GH.vetro.available && !cfg.preview) toast('Opening ' + it.label + '…');
     if (viaSmartHub && !cfg.preview) setLaunching(true);
     if (it.kind === 'app') p = P.launchApp(it.id, viaSmartHub ? it.storeId : null);
     else if (it.kind === 'input') p = P.switchInput(it.tv ? 'TV' : it.hdmi);
     else if (it.kind === 'web') p = P.openUrl(it.url);
     else p = P.openYouTube(it, ytMode);
     p.then(function (how) {
+      openingApp = false;
       if (String(how).indexOf('preview:') === 0) toast('Preview: would open ' + it.label);
       else if (how === 'youtube-home') toast('YouTube opened, but not at this video');
       else if (how === 'browser-home') toast('The browser opened without the address');
     }, function (e) {
+      openingApp = false;
       if (viaSmartHub) { setLaunching(false); if (backdrop && !document.hidden) backdrop.resume(); }
-      toast('Couldn’t open ' + it.label + (e && e.message ? ' (' + e.message + ')' : ''), 4500);
+      toast(e && e.launchUnconfirmed ? e.message : 'Couldn’t open ' + it.label + (e && e.message ? ' (' + e.message + ')' : ''), 4500);
     });
   }
 

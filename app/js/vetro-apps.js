@@ -1,4 +1,4 @@
-/* Optional Vetro catalog and saved dock selection. No Vetro control calls. */
+/* Optional Vetro catalog and saved dock selection. */
 (function () {
   'use strict';
   var GH = window.GH, cfg = GH.config, ls = GH.ls;

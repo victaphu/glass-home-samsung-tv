@@ -126,8 +126,18 @@ Glass Home's service reads Vetro's `/dock` endpoint on port 8099. It tries
 localhost first; if the TV denies that connection, it automatically tries the
 TV's own private IPv4 addresses. No IP address setting is needed. All attempts
 share a 25-second deadline. The integration only reads the published app list.
-Launching selected apps uses Glass Home's normal Tizen launch methods;
-Vetro-specific launch actions such as its TizenTube workaround are not run.
+When Vetro's app list is available, ordinary app tiles ask Vetro to open the
+selected app through its existing app-launch API. This works with upstream
+Vetro and does not require its launcher to be enabled. If Vetro is unavailable
+before a launch is sent, Glass Home uses its native launch methods. If a sent
+request cannot be confirmed, Glass Home reports that result without automatically
+sending a second launch. URLs, YouTube content links, HDMI and Live TV keep
+their dedicated launch paths. Vetro's app-launch API does not apply the native
+launcher's tile-specific actions, such as its TizenTube workaround.
+
+Sending ordinary launches through Vetro gives it an explicit app request that
+can support foreground coordination. Current Vetro versions do not necessarily
+coordinate that request with automatic return behavior.
 No Vetro installation is required for Glass Home's other features.
 
 If an app-list refresh fails, the **+** panel reports the connection or data
@@ -228,6 +238,7 @@ node dev/test-parsers.js   # hostile-page parsing stays fast
 node dev/test-limiter.js   # sign-in throttle and fair queue
 node dev/test-data.js      # TV app's service client
 node dev/test-vetro.js     # optional Vetro reader, selection and fallback
+node dev/test-vetro-launch.js # optional app launching, fallback and uncertain results
 node dev/test-dock-preferences.js # confirmed saves and forced-restart persistence
 node dev/test-startup.js   # startup rendering, saved choices and offline fallback
 node dev/test-ytparse.js   # YouTube link parser

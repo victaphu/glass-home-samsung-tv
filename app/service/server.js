@@ -25,6 +25,7 @@ var auth = require('./auth.js');
 var storeMod = require('./store.js');
 var yt = require('../js/ytparse.js');
 var vetro = require('./vetro.js');
+var vetroLaunch = require('./vetro-launch.js');
 var dockPrefs = require('./dock-prefs.js');
 
 var VERSION = '1.0.0';
@@ -127,6 +128,7 @@ function createService(opts) {
   var readVetroApps = vetro.createReader(cfg.packageId, function (err) {
     note('Vetro apps: ' + err.code + (err.detail ? ' (' + err.detail + ')' : '') + ' - ' + err.message);
   });
+  var launchVetroApp = vetroLaunch.createLauncher(readVetroApps);
 
   var hosts = opts.hosts || ['0.0.0.0'];
   var localKey = readLocalKey(appDir);
@@ -871,6 +873,15 @@ function createService(opts) {
     if (s[1] === 'vetro' && s[2] === 'apps' && s.length === 3 && m === 'GET') {
       return readVetroApps(ctx.query.refresh === '1').then(function (result) { sendJSON(res, 200, result); });
     }
+    if (s[1] === 'vetro' && s[2] === 'launch' && s.length === 3) {
+      if (m === 'GET') return sendJSON(res, 200, launchVetroApp.status());
+      if (m !== 'POST') return refuseBody(req, res, 405, { error: 'method' });
+      return readJSONBody(req, 2048).then(function (body) {
+        if (!body || typeof body.appId !== 'string' || !/^[A-Za-z0-9_.-]{1,120}$/.test(body.appId) ||
+            Object.keys(body).some(function (k) { return k !== 'appId'; })) return sendJSON(res, 400, { error: 'bad-app-id' });
+        return launchVetroApp(body.appId).then(function (result) { sendJSON(res, 200, result); });
+      }).catch(function (e) { bodyError(res, e); });
+    }
     if (s[1] === 'state' && s.length === 2 && m === 'GET') return sendJSON(res, 200, localState(ctx.query.rev));
     if (s[1] === 'password' && s.length === 2 && m === 'POST') {
       req.resume();
@@ -908,7 +919,7 @@ function createService(opts) {
       if (top === 'health' && segs.length === 1) {
         corsOpen(res);
         if (ctx.method === 'OPTIONS') return sendEmpty(res, 204);
-        return sendJSON(res, 200, { ok: true, name: 'Glass Home', version: VERSION, vetroApps: vetro.version, dockPreferences: 1 });
+        return sendJSON(res, 200, { ok: true, name: 'Glass Home', version: VERSION, vetroApps: vetro.version, vetroLaunch: vetroLaunch.version, dockPreferences: 1 });
       }
       if (top === 'local') return handleLocal(ctx);
       if (top === 'media') {

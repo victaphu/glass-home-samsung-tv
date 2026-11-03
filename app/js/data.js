@@ -86,6 +86,21 @@
     });
   };
 
+  D.vetroLaunch = function (appId) {
+    return request('POST', withKey('/local/vetro/launch'), { appId: appId }, 35000).then(function (r) {
+      if (r.status === 200 && r.data && r.data.appId === appId) {
+        if (r.data.outcome === 'accepted') return true;
+        if (r.data.outcome === 'fallback') return false;
+        if (r.data.outcome === 'busy') throw new Error('Another app is still opening');
+      }
+      // A missing endpoint on an older Glass Home service never submitted a launch.
+      if (r.status === 404 || r.status === 405) return false;
+      var err = new Error('Launch result could not be confirmed. Check the TV before trying again.');
+      err.launchUnconfirmed = true;
+      throw err;
+    });
+  };
+
   D.dockPreferences = function () {
     return request('GET', withKey('/local/dock-preferences'), undefined, 6000).then(function (r) {
       if (r.status !== 200 || !r.data || !Object.prototype.hasOwnProperty.call(r.data, 'preferences')) throw new Error('preferences unavailable');

@@ -1,5 +1,4 @@
-// Read Vetro's Samsung Home app list on this TV. This is deliberately a
-// fixed, read-only request, not a proxy for Vetro's control or shell APIs.
+// Read Vetro's Samsung Home app list on this TV through a fixed endpoint.
 'use strict';
 var http = require('http');
 var netutil = require('./netutil');
@@ -161,7 +160,7 @@ function readApps(packageId) {
 // Coalesce requests and avoid repeatedly waking Vetro's catalog reader.
 function createReader(packageId, onError) {
   var pending = null, cached = null, at = 0;
-  return function (refresh) {
+  function read(refresh) {
     if (!refresh && cached && Date.now() - at < 30000) return Promise.resolve(cached);
     if (!pending) pending = readApps(packageId).catch(function (err) {
       return { available: false, apps: [], error: err.vetro || failure('request', err).vetro };
@@ -173,7 +172,10 @@ function createReader(packageId, onError) {
       return result;
     });
     return pending;
-  };
+  }
+  // Launches use the already discovered catalog without starting a slow refresh.
+  read.current = function () { return cached; };
+  return read;
 }
 
-module.exports = { version: VERSION, appsFrom: appsFrom, readApps: readApps, createReader: createReader };
+module.exports = { version: VERSION, appsFrom: appsFrom, readApps: readApps, createReader: createReader, localLanAddresses: localLanAddresses };
