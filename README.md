@@ -129,7 +129,8 @@ Reported by people running it. Thank you! To add yours, fill in a
 | Samsung S95B | 2022 | 6.5 | HDMI and Live TV tiles tested here | [#10](https://github.com/victaphu/glass-home-samsung-tv/pull/10), [#12](https://github.com/victaphu/glass-home-samsung-tv/pull/12) |
 | Samsung Q80A | 2021 | 6.0 | | [#9](https://github.com/victaphu/glass-home-samsung-tv/issues/9) |
 | Samsung QN90A | 2021 | 6.0 | needed the CSS fixes from #5, now included | [#4](https://github.com/victaphu/glass-home-samsung-tv/issues/4) |
-| Samsung Q70T | 2020 | 5.5 | the service runs on Node 4.4.3 here; needs the fallbacks in `app/service/compat.js` | |
+| Samsung Q77T | 2020 | 5.5 | photo website works; YouTube, Netflix and Prime Video needed a local fix to open | [#13](https://github.com/victaphu/glass-home-samsung-tv/issues/13) |
+| Samsung Q70T | 2020 | 5.5 | the service runs on Node 4.4.3 here; the fallbacks in `app/service/compat.js` cover it | [#15](https://github.com/victaphu/glass-home-samsung-tv/pull/15) |
 | Samsung TU8000 | 2020 | 5.5 | photo service included | [#3](https://github.com/victaphu/glass-home-samsung-tv/pull/3) |
 | Samsung NU6900 | 2018 | 4.0 | with `photoService: false` and `smartHubLaunch: true` | [#2](https://github.com/victaphu/glass-home-samsung-tv/issues/2) |
 
