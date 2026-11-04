@@ -610,6 +610,7 @@ html.lite #wx-week {
 }
 .panel-grid {
   display: grid;
+  grid-gap: 30px;   /* Chrome 57-65 (2019 TVs, Tizen 5.0) only know grid-gap */
   gap: 30px;
   margin: 44px 0 34px;
 }

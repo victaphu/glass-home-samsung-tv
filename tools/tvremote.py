@@ -210,6 +210,11 @@ def rest(method, path):
 
 
 def main():
+    # A Windows console can't print every character in Samsung's app names
+    # (some use a fullwidth ＆): print a replacement instead of crashing.
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(errors="replace")
     parser = argparse.ArgumentParser(description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--note", default="", help="label this command in the log")
