@@ -18,6 +18,7 @@ var http = require('http');
 var fs = require('fs');
 var path = require('path');
 var urlmod = require('url');
+var compat = require('./compat.js');
 var crypto = require('crypto');
 var netu = require('./netutil.js');
 var imgu = require('./imageutil.js');
@@ -100,7 +101,7 @@ function normalizeWebUrl(raw) {
   if (!s || s.length > 2048) return null;
   if (!/^[a-z][a-z0-9+.-]*:/i.test(s)) s = 'https://' + s.replace(/^\/\//, '');
   var u;
-  try { u = new urlmod.URL(s); } catch (e) { return null; }
+  try { u = new compat.URL(s); } catch (e) { return null; }
   if (u.protocol !== 'http:' && u.protocol !== 'https:') return null;
   if (u.username || u.password || !u.hostname) return null;
   if (!/^[a-z0-9.[\]:-]+$/i.test(u.hostname)) return null;
@@ -108,7 +109,7 @@ function normalizeWebUrl(raw) {
 }
 
 function hostLabel(href) {
-  try { return new urlmod.URL(href).hostname.replace(/^www\./, ''); } catch (e) { return 'Website'; }
+  try { return new compat.URL(href).hostname.replace(/^www\./, ''); } catch (e) { return 'Website'; }
 }
 
 function createService(opts) {
