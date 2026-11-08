@@ -40,8 +40,9 @@ in [docs/screenshots/on-tv](docs/screenshots/on-tv/).
   an hour the first time, and a free Samsung account. There is no ready-made
   download: a signed package only installs on the TV it was made for.
 - **Reported working on Samsung TVs from 2018 to 2025** (Tizen 4 to 10): see
-  [Tested TVs](#tested-tvs). Reports welcome. On 2018 TVs (Tizen 4) set
-  `photoService: false` and `smartHubLaunch: true` (see Settings).
+  [Tested TVs](#tested-tvs). Reports welcome. If YouTube, Netflix or Prime
+  Video won't open from the dock, set `smartHubLaunch: true`; on 2018 TVs
+  (Tizen 4) also set `photoService: false` (see Settings).
 - **A big OS upgrade can delete it.** Samsung's Tizen OS upgrades (for example
   to Tizen 9 / One UI Tizen) have removed sideloaded apps on other TVs. You can
   reinstall it the same way.
@@ -76,7 +77,7 @@ All in [`app/js/config.js`](app/js/config.js):
 | `youtubeMode` | How YouTube shortcuts are opened (see below). |
 | `photoIntervalMs` | How often the photo changes. |
 | `photoService` | `false` turns off the photo website, and with it **+**, shortcuts and your own photos. For TVs that can't run it (2018 models); also remove `<tizen:service>` and the `web.service` feature from `app/config.xml`. |
-| `smartHubLaunch` | `true` on older TVs where apps won't start from the dock: opens them through Samsung's own launcher and hides the photos while they start. Off by default. |
+| `smartHubLaunch` | `true` if apps won't open from the dock (seen on 2017–2020 TVs): opens them through Samsung's own launcher, trying each Samsung store ID listed for the app, and hides the photos while they start. Off by default. |
 
 Your own logo: `scripts/use-logo.sh path/to/logo.png` (square, ideally 1024 x
 1024) makes the TV icon and the website icons. The on-screen name is in
@@ -196,6 +197,7 @@ node dev/test-limiter.js   # sign-in throttle and fair queue
 node dev/test-data.js      # TV app's service client
 node dev/test-ytparse.js   # YouTube link parser
 node dev/test-compat.js    # Node 4 fallbacks match the built-ins
+node dev/test-launch.js    # opening apps: store IDs in turn, then the normal launch
 node dev/test-backdrop.js  # photo rotation
 node dev/lint-node12.js    # service code stays within the Node 12 API
 ```

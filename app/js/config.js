@@ -84,7 +84,8 @@
     // by name. Remove entries you don't have; add others the same way. The
     // RN1MCdNq8t / evKhCgZelL IDs are Netflix and Prime Video on 2017-2018 TVs.
     // `storeId`: the Samsung store ID (`app_id` in vd_applist), used only with
-    // smartHubLaunch.
+    // smartHubLaunch. Samsung gives Netflix and Prime Video a different store
+    // ID on newer TVs, so those list both, newer first; each is tried in turn.
     // `icon`: a path under app/ to use your own image, or false for a plain
     // glass tile with the app's name. Some apps report a poor icon to other
     // apps (YouTube reports its Cobalt engine's pinwheel, Prime Video's may not
@@ -92,9 +93,9 @@
     apps: [
       { key: 'youtube', label: 'YouTube', storeId: '111299001912', ids: ['9Ur5IzDKqV.TizenYouTube', 'com.samsung.tv.cobalt-yt'],
         names: ['^youtube$'], icon: false },
-      { key: 'netflix', label: 'Netflix', storeId: '11101200001', ids: ['org.tizen.netflix-app', 'RN1MCdNq8t.Netflix'],
+      { key: 'netflix', label: 'Netflix', storeId: ['3201907018807', '11101200001'], ids: ['org.tizen.netflix-app', 'RN1MCdNq8t.Netflix'],
         names: ['^netflix$', '\\bnetflix\\b'] },
-      { key: 'prime', label: 'Prime Video', storeId: '3201512006785', ids: ['org.tizen.primevideo', 'org.tizen.ignition', 'evKhCgZelL.AmazonIgnitionLauncher2'],
+      { key: 'prime', label: 'Prime Video', storeId: ['3201910019365', '3201512006785'], ids: ['org.tizen.primevideo', 'org.tizen.ignition', 'evKhCgZelL.AmazonIgnitionLauncher2'],
         names: ['^prime video$', '^amazon prime video$', '\\bprime video\\b'], icon: false },
       { key: 'tvplus', label: 'Samsung TV Plus', ids: ['com.samsung.tv.tvPlusDeeplinker', 'com.samsung.tv.tvplus'],
         names: ['^samsung tv plus$', '^tv plus$', 'samsung tv plus'], icon: false },

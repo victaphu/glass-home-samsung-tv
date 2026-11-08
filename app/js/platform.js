@@ -97,20 +97,29 @@
 
   // Asks Samsung's launcher (the TV's local REST API, as Smart Hub and phone
   // remotes use) to open an app by its store ID. Only used when
-  // config.smartHubLaunch is on (older TVs).
-  function smartHubLaunch(storeId) {
+  // config.smartHubLaunch is on. `storeIds` is one ID or a list: while the
+  // launcher answers but doesn't know an ID (older and newer TVs use different
+  // IDs for some apps), the next is tried. If the launcher can't be reached,
+  // it stops at once and the caller falls back to the normal launch.
+  function smartHubLaunch(storeIds) {
+    var ids = [].concat(storeIds);
     return new Promise(function (resolve, reject) {
-      var x = new XMLHttpRequest();
-      x.timeout = 5000;
-      x.open('POST', 'http://127.0.0.1:8001/api/v2/applications/' + encodeURIComponent(storeId));
-      x.onload = function () { if (x.status === 200) resolve('smarthub'); else reject(new Error('launcher HTTP ' + x.status)); };
-      x.onerror = x.ontimeout = function () { reject(new Error('launcher unreachable')); };
-      x.send();
+      function attempt(i, lastStatus) {
+        if (i >= ids.length) { reject(new Error('launcher HTTP ' + lastStatus)); return; }
+        var x = new XMLHttpRequest();
+        x.timeout = 5000;
+        x.open('POST', 'http://127.0.0.1:8001/api/v2/applications/' + encodeURIComponent(ids[i]));
+        x.onload = function () { if (x.status === 200) resolve('smarthub'); else attempt(i + 1, x.status); };
+        x.onerror = x.ontimeout = function () { reject(new Error('launcher unreachable')); };
+        x.send();
+      }
+      attempt(0, 0);
     });
   }
 
-  // Opens an installed app: through Samsung's launcher when a store ID is
-  // given, else (or if that fails) launch(), then an app-control launch.
+  // Opens an installed app: through Samsung's launcher when a store ID (or a
+  // list of them) is given, else (or if that fails) launch(), then an
+  // app-control launch.
   P.launchApp = function (id, storeId) {
     if (!tz) return previewLaunch(id);
     if (storeId) return smartHubLaunch(storeId).catch(function () { return P.launchApp(id); });
