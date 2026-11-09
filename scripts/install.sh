@@ -5,9 +5,10 @@ set -eu
 root=$(cd "$(dirname "$0")/.." && pwd)
 [ -f "$root/scripts/tizen-env.sh" ] || { echo "Copy scripts/tizen-env.example.sh to scripts/tizen-env.sh and fill it in first." >&2; exit 64; }
 . "$root/scripts/tizen-env.sh"
-command -v tizen >/dev/null || { echo "The Tizen CLI is not on PATH; see docs/INSTALL.md, step 2." >&2; exit 69; }
+. "$root/scripts/platform.sh"
+have_tizen || { echo "The Tizen CLI is not on PATH; see docs/INSTALL.md, step 2." >&2; exit 69; }
 [ -f "$root/dist/GlassHome.wgt" ] || { echo "Run scripts/build.sh first." >&2; exit 66; }
-sdb connect "$TV"
-tizen install-permit -s "$TV"
-tizen install -s "$TV" -n GlassHome.wgt -- "$root/dist"
-tizen run -s "$TV" -p "$APP_ID"
+"$SDB_CMD" connect "$TV"
+"$TIZEN_CMD" install-permit -s "$TV"
+"$TIZEN_CMD" install -s "$TV" -n GlassHome.wgt -- "$(winpath "$root/dist")"
+"$TIZEN_CMD" run -s "$TV" -p "$APP_ID"
