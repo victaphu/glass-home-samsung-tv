@@ -83,6 +83,23 @@
     });
   };
 
+  // An app's dock icon. The platform's store-id icons are the branded ones, so
+  // they win when the def names a storeId; otherwise the path the TV reports is
+  // fetched through the service, which can read it when the webview cannot.
+  P.appIconUrl = function (storeId, iconPath) {
+    var cfg = (window.GH && window.GH.config) || {};
+    var base = cfg.photoService === false ? '' : (cfg.serviceBase || '');
+    if (base && !cfg.preview) {
+      var sid = storeId;
+      if (sid && sid.length && typeof sid !== 'string') sid = sid[0];
+      if (sid) return base + '/appicon?storeId=' + encodeURIComponent(sid);
+      if (iconPath && String(iconPath).charAt(0) === '/') {
+        return base + '/appicon?path=' + encodeURIComponent(iconPath);
+      }
+    }
+    return P.iconUrl(iconPath);
+  };
+
   P.iconUrl = function (iconPath) {
     if (!iconPath) return null;
     var s = String(iconPath);

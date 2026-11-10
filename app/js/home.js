@@ -71,6 +71,8 @@
   var backdrop = null;
   var bundled = [];
   var serviceUp = null;
+  var iconEpoch = 0;
+  var iconFailed = false;
   var serviceError = null;
   var ensuring = false;
   var clockTimer = null;
@@ -177,7 +179,8 @@
       if (!a || (photoService && hidden.indexOf(k) >= 0)) return;
       list.push({ kind: 'app', key: 'app:' + k, appKey: k, label: defByKey[k].label, id: a.id,
         storeId: defByKey[k].storeId,
-        icon: defByKey[k].icon === false ? null : (defByKey[k].icon || P.iconUrl(a.iconPath)) });
+        icon: defByKey[k].icon === false ? null
+          : (defByKey[k].icon || withEpoch(P.appIconUrl(defByKey[k].storeId, a.iconPath))) });
     });
     orderedInputs().forEach(function (inp) {
       var k = inputKey(inp);
@@ -281,7 +284,11 @@
         img = new Image();
         img.className = 'app-icon';
         img.alt = '';
-        img.onerror = function () { face.textContent = ''; face.appendChild(div('name-fallback', it.label)); };
+        img.onerror = function () {
+          iconFailed = true;                  // retried when the service comes up
+          face.textContent = '';
+          face.appendChild(div('name-fallback', it.label));
+        };
         img.src = it.icon;
         face.appendChild(img);
       } else {
@@ -816,11 +823,31 @@
     }, 500);
   }
 
+  // App icons come from the service, which is not listening yet when the dock
+  // first paints: those <img>s fail, leave the app's name behind, and never try
+  // again, because the tile cache is keyed by a signature that hasn't changed.
+  // Bumping the epoch when the service comes up changes the icon URLs, which
+  // rebuilds those tiles and asks again, past any negative caching.
+  function withEpoch(url) {
+    if (!url || !iconEpoch) return url;
+    return url + (url.indexOf('?') >= 0 ? '&' : '?') + 'v=' + iconEpoch;
+  }
+
+  function setServiceUp(ok) {
+    var was = serviceUp;
+    serviceUp = !!ok;
+    if (serviceUp && was !== true && iconFailed) {
+      iconFailed = false;
+      iconEpoch += 1;
+      if (items.length) rebuildDock();
+    }
+  }
+
   // ---------- service ----------
   function refresh() {
     if (!photoService) return Promise.resolve({ online: false });
     return D.refresh().then(function (r) {
-      serviceUp = r.online;
+      setServiceUp(r.online);
       if (r.changed) {
         shortcuts = (r.state && r.state.shortcuts) || [];
         rebuildDock();
@@ -851,7 +878,7 @@
       }).then(function () { return waitHealthy(40); });
     }).then(function (ok) {
       ensuring = false;
-      serviceUp = !!ok;
+      setServiceUp(ok);
       if (ok) return refresh();
       if (mode === 'panel') renderPanel();
       if (!document.hidden) retryTimer = setTimeout(ensureService, 30000);
