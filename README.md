@@ -91,7 +91,7 @@ Your own logo: `scripts/use-logo.sh path/to/logo.png` (square, ideally 1024 x
 | OK | open the app, website or video, or switch to the HDMI input |
 | Hold OK | Move left, Move right, Remove (shortcuts) or Hide (apps and inputs), Cancel |
 | Back | closes the menu or the panel; does nothing on the home screen |
-| OK on **+** | the website address and password; New password; show hidden apps |
+| OK on **+** | the website address and password; New password; Add an app; show hidden apps |
 
 **Photos and shortcuts.** On a phone on the same Wi-Fi, open the address shown
 under **+** and sign in with the password shown there. Upload photos (up to

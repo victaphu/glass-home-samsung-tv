@@ -45,9 +45,20 @@
   var photoService = cfg.photoService !== false && Q.photoService !== '0';
   var smartHubLaunch = cfg.smartHubLaunch === true;
 
-  var defs = cfg.apps;
+  // Apps chosen from the + panel, on top of the config.js list. Stored as
+  // { key, label, id }: the picker knows the exact Tizen id, so the name-match
+  // fallback in platform.resolveApps has nothing to do and its names list is
+  // empty.
+  var extraApps = ls.get('gh.extraApps') || [];
+  function extraDef(x) { return { key: x.key, label: x.label, ids: [x.id], names: [], extra: true }; }
+  var defs = [];
   var defByKey = {};
-  defs.forEach(function (d) { defByKey[d.key] = d; });
+  function rebuildDefs() {
+    defs = cfg.apps.concat(extraApps.map(extraDef));
+    defByKey = {};
+    defs.forEach(function (d) { defByKey[d.key] = d; });
+  }
+  rebuildDefs();
 
   var apps = {};
   var shortcuts = [];
@@ -180,7 +191,7 @@
       list.push({ kind: 'app', key: 'app:' + k, appKey: k, label: defByKey[k].label, id: a.id,
         storeId: defByKey[k].storeId,
         icon: defByKey[k].icon === false ? null
-          : (defByKey[k].icon || withEpoch(P.appIconUrl(defByKey[k].storeId, a.iconPath))) });
+          : (defByKey[k].icon || withEpoch(P.appIconUrl(defByKey[k].storeId, a.iconPath, a.id))) });
     });
     orderedInputs().forEach(function (inp) {
       var k = inputKey(inp);
@@ -486,6 +497,8 @@
       { label: 'Move left', disabled: gi <= 0, run: function () { moveItem(it, -1); } },
       { label: 'Move right', disabled: gi >= group.length - 1, run: function () { moveItem(it, 1); } },
       it.kind === 'web' || it.kind === 'youtube' ? { label: 'Remove', run: function () { removeShortcut(it); } }
+        : it.kind === 'app' && defByKey[it.appKey] && defByKey[it.appKey].extra
+          ? { label: 'Remove', run: function () { removeExtraApp(it); } }
         : photoService ? { label: 'Hide', run: function () { hideApp(it); } }
         : null,                           // apps and inputs: no + to bring them back
       { label: 'Cancel', run: function () {} }
@@ -515,6 +528,87 @@
 
   function closeMenu() {
     menu.classList.remove('open');
+    dock.classList.remove('dimmed');
+    mode = 'dock';
+  }
+
+  // ---------- apps added from the + panel ----------
+  function addExtraApp(a) {
+    var key = 'x:' + a.id;
+    if (defByKey[key]) { toast(a.name + ' is already on the dock'); return; }
+    extraApps.push({ key: key, label: a.name, id: a.id });
+    ls.set('gh.extraApps', extraApps);
+    rebuildDefs();
+    var h = hidden.indexOf(key);                 // re-adding beats an older Hide
+    if (h >= 0) { hidden.splice(h, 1); ls.set('gh.hidden', hidden); }
+    resolveApps().then(function () {
+      rebuildDock();
+      toast(a.name + ' added to the dock');
+    });
+  }
+
+  function removeExtraApp(it) {
+    extraApps = extraApps.filter(function (x) { return x.key !== it.appKey; });
+    ls.set('gh.extraApps', extraApps);
+    rebuildDefs();
+    delete apps[it.appKey];
+    rebuildDock();
+    toast(it.label + ' removed from the dock');
+  }
+
+  var pickItems = [];
+  var pickFocus = 0;
+
+  function openPicker() {
+    P.listApps().then(function (list) {
+      var onDock = {};
+      defs.forEach(function (d) { if (apps[d.key]) onDock[apps[d.key].id] = true; });
+      pickItems = list.filter(function (a) { return !onDock[a.id]; })
+        .sort(function (a, b) { return P.norm(a.name) < P.norm(b.name) ? -1 : 1; });
+      if (!pickItems.length) { toast('Every installed app is already on the dock'); return; }
+      closePanel();
+      pickFocus = 0;
+      menu.textContent = '';
+      menu.appendChild(div('menu-title', 'Add an app to the dock'));
+      pickItems.forEach(function (a) {
+        var rowEl = div('menu-item');
+        var url = P.appIconUrl(null, a.iconPath, a.id);
+        if (url) {
+          var img = new Image();
+          img.className = 'pick-icon';
+          img.alt = '';
+          // Keep the slot so the names stay in a column when an icon won't load.
+          img.onerror = function () { img.style.visibility = 'hidden'; };
+          img.src = url;
+          rowEl.appendChild(img);
+        } else {
+          rowEl.appendChild(div('pick-icon'));
+        }
+        rowEl.appendChild(div('pick-name', a.name));
+        a.el = rowEl;
+        menu.appendChild(rowEl);
+      });
+      menu.classList.add('picker');
+      renderPickFocus();
+      var w = menu.offsetWidth || 520;
+      menu.style.left = Math.round((1920 - w) / 2) + 'px';
+      menu.style.bottom = (DOCK_BOTTOM + dockHeight() + 18) + 'px';
+      mode = 'picker';
+      menu.classList.add('open');
+      dock.classList.add('dimmed');
+    });
+  }
+
+  function renderPickFocus() {
+    pickItems.forEach(function (a, i) {
+      a.el.classList.toggle('focused', i === pickFocus);
+      if (i === pickFocus && a.el.scrollIntoView) a.el.scrollIntoView({ block: 'nearest' });
+    });
+  }
+
+  function closePicker() {
+    menu.classList.remove('open');
+    menu.classList.remove('picker');
     dock.classList.remove('dimmed');
     mode = 'dock';
   }
@@ -592,6 +686,7 @@
 
     panelButtons = [];
     panelButtons.push({ id: 'newpw', label: confirmNewPw ? 'Press OK again to confirm' : 'New password', cls: confirmNewPw ? 'armed' : '' });
+    panelButtons.push({ id: 'addapp', label: 'Add an app' });
     if (hidden.length) panelButtons.push({ id: 'unhide', label: 'Show hidden apps (' + hidden.length + ')' });
     panelButtons.push({ id: 'close', label: 'Done' });
     panelButtons.push({ id: 'ytmode', label: 'YouTube links: ' + YT_MODE_NAMES[ytMode], small: true });
@@ -651,6 +746,7 @@
   function panelAction(b) {
     if (!b) return;
     if (b.id === 'close') { closePanel(); return; }
+    if (b.id === 'addapp') { openPicker(); return; }
     if (b.id === 'unhide') {
       hidden = [];
       ls.set('gh.hidden', hidden);
@@ -690,11 +786,26 @@
     if (k === KEY.BACK || k === KEY.ESC || (k === KEY.BACKSPACE && cfg.preview)) {
       e.preventDefault();
       if (mode === 'menu') closeMenu();
+      else if (mode === 'picker') closePicker();
       else if (mode === 'panel') closePanel();
       return;                                   // at the top level Back does nothing
     }
     if ([KEY.LEFT, KEY.RIGHT, KEY.UP, KEY.DOWN, KEY.ENTER].indexOf(k) < 0) return;
     e.preventDefault();
+    if (mode === 'picker') {
+      if (k === KEY.ENTER) {
+        if (waitEnterRelease || e.repeat) return;
+        var pa = pickItems[pickFocus];
+        closePicker();
+        if (pa) addExtraApp(pa);
+        return;
+      }
+      if (k === KEY.UP || k === KEY.DOWN) {
+        var pj = pickFocus + (k === KEY.UP ? -1 : 1);
+        if (pj >= 0 && pj < pickItems.length) { pickFocus = pj; renderPickFocus(); }
+      }
+      return;
+    }
     if (mode === 'menu') {
       if (k === KEY.ENTER) {
         if (waitEnterRelease || e.repeat) return;   // OK still held from the long press
