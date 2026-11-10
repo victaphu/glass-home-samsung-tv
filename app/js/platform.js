@@ -48,8 +48,21 @@
   // Resolves { key: { id, name, iconPath } } for the dock apps that are installed.
   P.resolveApps = function (defs) {
     if (!tz) {
+      // Match on ids first, as the TV branch below does, so a def that names an
+      // exact id (the dock's app picker) resolves in preview too.
       var mock = (window.GH_MOCK && window.GH_MOCK.apps) || [];
-      return Promise.resolve(matchByName(defs, mock, {}));
+      var seeded = {};
+      defs.forEach(function (def) {
+        for (var i = 0; i < def.ids.length && !seeded[def.key]; i++) {
+          for (var j = 0; j < mock.length; j++) {
+            if (mock[j] && mock[j].id === def.ids[i]) {
+              seeded[def.key] = { id: mock[j].id, name: mock[j].name, iconPath: mock[j].iconPath || null };
+              break;
+            }
+          }
+        }
+      });
+      return Promise.resolve(matchByName(defs, mock, seeded));
     }
     var result = {};
     defs.forEach(function (def) {
@@ -80,6 +93,91 @@
         clearTimeout(timer);
         resolve(result);
       }
+    });
+  };
+
+  // An app's dock icon. The platform's store-id icons are the branded ones, so
+  // they win when the def names a storeId; otherwise the path the TV reports is
+  // fetched through the service, which can read it when the webview cannot.
+  // A few apps don't report their own icon. Apps built on Samsung's Cobalt
+  // engine (YouTube, YouTube TV) report the engine's pinwheel, and a couple of
+  // vendor apps name a file that isn't on the TV. The platform's store icon is
+  // correct in each case, so it wins where the store id is known. Checked by
+  // hashing every icon on a 2025 set: 1 of 32 was the shared pinwheel, 2 were
+  // missing, and the rest report their own icon correctly.
+  var STORE_ICON = {
+    '9Ur5IzDKqV.TizenYouTube': '111299001912',
+    'PvWgqxV3Xa.YouTubeTV': '3201707014489',
+    'org.tizen.primevideo': '3201910019365',
+    'org.tizen.browser': '3202010022079'
+  };
+
+  P.appIconUrl = function (storeId, iconPath, appId) {
+    var cfg = (window.GH && window.GH.config) || {};
+    var base = cfg.photoService === false ? '' : (cfg.serviceBase || '');
+    if (base && !cfg.preview) {
+      var sid = storeId;
+      if (sid && sid.length && typeof sid !== 'string') sid = sid[0];
+      if (!sid && appId) sid = STORE_ICON[appId] || '';
+      if (sid) return base + '/appicon?storeId=' + encodeURIComponent(sid);
+      if (iconPath && String(iconPath).charAt(0) === '/') {
+        return base + '/appicon?path=' + encodeURIComponent(iconPath);
+      }
+    }
+    return P.iconUrl(iconPath);
+  };
+
+  // Apps a person would recognise, for the dock's picker. getAppsInfo returns
+  // every installed Tizen package - 266 on a 2025 TV, against the 36 its own
+  // app panel lists - including services, setup screens, duplicates and
+  // unnamed internals. Two things tell them apart: a real app's icon lives on
+  // the writable partition under /opt/usr/apps/, while system packages sit on
+  // read-only /usr/apps/ or carry no icon at all; and apps from the store have
+  // a ten-character package prefix. A handful of genuine apps ship under a
+  // vendor id instead, so those are listed by name.
+  var VENDOR_APPS = ['org.tizen.netflix-app', 'org.tizen.primevideo', 'org.tizen.browser',
+                     'com.samsung.tv.aria-video', 'com.microsoft.copilot'];
+
+  function selfId() {
+    try { return tz.application.getCurrentApplication().appInfo.id; } catch (e) { return ''; }
+  }
+
+  function looksLikeRealApp(a) {
+    var id = String(a.id || '');
+    if (!/^\/opt\/usr\/apps\//.test(String(a.iconPath || ''))) return false;
+    return /^[A-Za-z0-9]{10}\./.test(id) || VENDOR_APPS.indexOf(id) >= 0;
+  }
+
+  P.listApps = function () {
+    function tidy(list, filter) {
+      var self = filter ? selfId() : '';
+      var seen = {};
+      // Always worth doing: no blanks, no duplicates, and never ourselves.
+      var rows = (list || []).filter(function (a) {
+        if (!a || !a.id || a.show === false || seen[a.id]) return false;
+        if (!String(a.name || '').trim()) return false;
+        if (a.id === self) return false;
+        seen[a.id] = true;
+        return true;
+      });
+      if (filter) {
+        var narrowed = rows.filter(looksLikeRealApp);
+        // Fail open. The two signals above were read off one TV, and the layout
+        // could differ on another model or Tizen version; a long list is a
+        // nuisance, an empty one makes the picker useless.
+        if (narrowed.length) rows = narrowed;
+      }
+      return rows.map(function (a) { return { id: a.id, name: a.name, iconPath: a.iconPath || null }; });
+    }
+    // Preview's mock list is already short and has no icon paths to judge by.
+    if (!tz) return Promise.resolve(tidy((window.GH_MOCK && window.GH_MOCK.apps) || [], false));
+    return new Promise(function (resolve) {
+      var done = false;
+      var timer = setTimeout(function () { if (!done) { done = true; resolve([]); } }, 4000);
+      function finish(v) { if (done) return; done = true; clearTimeout(timer); resolve(v); }
+      try {
+        tz.application.getAppsInfo(function (list) { finish(tidy(list, true)); }, function () { finish([]); });
+      } catch (e) { finish([]); }
     });
   };
 
