@@ -89,7 +89,8 @@ Your own logo: `scripts/use-logo.sh path/to/logo.png` (square, ideally 1024 x
 |---|---|
 | Left / Right | move along the dock |
 | OK | open the app, website or video, or switch to the HDMI input |
-| Hold OK | Move left, Move right, Remove (shortcuts) or Hide (apps and inputs), Cancel |
+| Hold OK | Move, Remove (shortcuts) or Hide (apps and inputs), Cancel |
+| Left / Right after **Move** | slide the tile along its own kind; OK places it, Back puts it back |
 | Back | closes the menu or the panel; does nothing on the home screen |
 | OK on **+** | the website address and password; New password; show hidden apps |
 

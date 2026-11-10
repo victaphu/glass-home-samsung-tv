@@ -400,6 +400,13 @@ html.lite #wx-week {
 }
 .tile.focused .glow { opacity: 1; }
 
+/* move mode: the picked-up tile lifts clear of the row */
+#dock.moving .tile.focused {
+  transform: translateY(-24px) scale(1.2);
+  box-shadow: 0 26px 60px rgba(0, 0, 0, 0.5), 0 0 0 3px rgba(255, 255, 255, 0.92);
+}
+#dock.moving .tile:not(.focused) { opacity: 0.5; }
+
 .tile .app-icon,
 .tile .site-icon,
 .tile .thumb {
