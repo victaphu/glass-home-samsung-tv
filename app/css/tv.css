@@ -540,6 +540,32 @@ html.lite #wx-week {
   transform: none;
   transition: opacity 0.18s ease, transform 0.24s var(--ease), visibility 0s;
 }
+#menu.picker {
+  min-width: 620px;
+  max-height: 560px;
+  overflow-y: auto;
+}
+/* picker rows: the app's own icon beside its name, easier to recognise */
+#menu.picker .menu-item {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 12px 20px;
+}
+#menu.picker .pick-icon {
+  flex: none;
+  width: 56px;
+  height: 56px;
+  object-fit: contain;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.06);
+}
+#menu.picker .pick-name {
+  flex: 1;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
 .menu-title {
   padding: 10px 24px 12px;
   font-size: 21px;
