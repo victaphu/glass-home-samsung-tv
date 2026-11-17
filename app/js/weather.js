@@ -170,6 +170,20 @@
     return num(j.current.temperature_2m);
   }
 
+  // Parse offset-free Open-Meteo times as local wall-clock times on old TVs.
+  function localTime(s) {
+    var m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(String(s || ''));
+    return m ? new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]).getTime() : null;
+  }
+
+  function shareSky(sky) {
+    var old = GH.sky;
+    GH.sky = sky;
+    if (JSON.stringify(old) !== JSON.stringify(sky)) {
+      try { document.dispatchEvent(new CustomEvent('gh-sky')); } catch (e) { /* timer also updates */ }
+    }
+  }
+
   function localDay(dt) {
     return dt.getFullYear() + '-' + ('0' + (dt.getMonth() + 1)).slice(-2) + '-' + ('0' + dt.getDate()).slice(-2);
   }
@@ -193,11 +207,11 @@
   function render() {
     var rec = last;
     var age = rec ? Date.now() - rec.at : Infinity;
-    if (!rec || !valid(rec.data) || age > HIDE_AFTER) { root.classList.remove('on'); return; }
+    if (!rec || !valid(rec.data) || age > HIDE_AFTER) { shareSky(null); root.classList.remove('on'); return; }
     var j = rec.data;
     var d = j.daily;
     var i0 = d.time.indexOf(localDay(new Date()));
-    if (i0 < 0) { root.classList.remove('on'); return; }
+    if (i0 < 0) { shareSky(null); root.classList.remove('on'); return; }
 
     // Now: icon, temperature, condition, today's high and low.
     var c = j.current;
@@ -205,6 +219,11 @@
     var nowCode = num(c.weather_code) ? c.weather_code : d.weather_code[i0];
     var nowInfo = info(nowCode);
     var showNow = age <= NOW_STALE;
+    if (GH.config.photos && GH.config.photos.matchSky) shareSky({
+      code: showNow ? nowCode : null,
+      sunrise: d.sunrise ? localTime(d.sunrise[i0]) : null,
+      sunset: d.sunset ? localTime(d.sunset[i0]) : null
+    });
     document.getElementById('wx-now-icon').innerHTML = iconSvg(showNow ? nowInfo[2] : info(d.weather_code[i0])[2], showNow && night);
     document.getElementById('wx-now-temp').textContent = showNow ? deg(c.temperature_2m) : '';
     var parts = [];
@@ -240,6 +259,7 @@
       '&longitude=' + encodeURIComponent(cfg.longitude) +
       '&current=temperature_2m,weather_code,is_day' +
       '&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max' +
+      (GH.config.photos && GH.config.photos.matchSky ? ',sunrise,sunset' : '') +
       (FAHRENHEIT ? '&temperature_unit=fahrenheit' : '') +
       '&timezone=' + encodeURIComponent(cfg.timezone || 'auto') + '&forecast_days=8';
   }

@@ -31,6 +31,8 @@ async function launch() {
     '--disable-features=MediaRouter,DialMediaRouteProvider,CastMediaRouteProvider,Translate,OptimizationHints',
     '--remote-debugging-address=127.0.0.1', '--remote-debugging-port=0', 'about:blank'
   ], { stdio: ['ignore', 'ignore', 'pipe'] });
+  // Register before shutdown so even an immediate exit cannot be missed.
+  const exited = new Promise((resolve) => proc.once('close', resolve));
   const wsUrl = await new Promise((resolve, reject) => {
     let buf = '';
     const t = setTimeout(() => reject(new Error('Brave did not start')), 20000);
@@ -144,12 +146,31 @@ async function launch() {
     return page;
   }
 
+  async function waitForExit(ms) {
+    let timer;
+    try {
+      return await Promise.race([
+        exited.then(() => true),
+        new Promise((resolve) => { timer = setTimeout(() => resolve(false), ms); })
+      ]);
+    } finally { clearTimeout(timer); }
+  }
+
   async function close() {
-    try { await send('Browser.close'); } catch (e) { /* already gone */ }
-    await sleep(300);
-    try { proc.kill('SIGKILL'); } catch (e) { /* gone */ }
-    try { ws.close(); } catch (e) { /* gone */ }
-    fs.rmSync(profile, { recursive: true, force: true });
+    // The CDP reply is not proof the browser has exited, and may never arrive
+    // when it shuts its socket first. Wait for the child process instead.
+    send('Browser.close').catch(() => {});
+    try {
+      if (!await waitForExit(5000)) {
+        proc.kill('SIGKILL');
+        if (!await waitForExit(5000)) throw new Error('Browser did not exit during cleanup');
+      }
+    } finally {
+      try { ws.close(); } catch (e) { /* already closed */ }
+    }
+    // Chromium helpers can briefly keep profile files busy after the parent
+    // exits. Retry transient ENOTEMPTY/EBUSY errors, but still fail if persistent.
+    fs.rmSync(profile, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
   }
 
   return { newPage, close, sleep };

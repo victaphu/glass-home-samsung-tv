@@ -45,7 +45,7 @@
 
     // Optional HTTP(S) manifest on your NAS or another web server. Empty: off.
     // Paths in the list resolve relative to this URL. No photo service needed.
-    photos: { remoteManifest: '' },
+    photos: { remoteManifest: '', matchSky: false },
 
     photoIntervalMs: 45000,
     fadeMs: 1600,

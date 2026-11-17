@@ -75,6 +75,7 @@ All in [`app/js/config.js`](app/js/config.js):
 | `ambient` | Screensaver delay. |
 | `night` | Evening dimming hours (24-hour, TV clock). |
 | `youtubeMode` | How YouTube shortcuts are opened (see below). |
+| `photos.matchSky` | `true` opts into time/weather and seasonal matching for tagged bundled or remote photos. Off by default. |
 | `photos.remoteManifest` | URL of an optional HTTP(S) photo manifest. Empty by default; works with `photoService: false`. See [remote photos](#photos-from-a-url). |
 | `photoIntervalMs` | How often the photo changes. |
 | `photoService` | `false` turns off the photo website, and with it **+**, shortcuts and your own photos. For TVs that can't run it (2018 models); also remove `<tizen:service>` and the `web.service` feature from `app/config.xml`. |
@@ -261,3 +262,36 @@ photos available. Without any photos, the background gradient remains visible.
 Use a server and images you trust. The TV must be able to reach them without
 sign-in; HTTP traffic is unencrypted. For desktop previews, the server must
 allow cross-origin requests (CORS). No Home Assistant integration is needed.
+
+### Match photos to the sky and season
+
+Set `photos.matchSky: true` to use optional entry tags in either manifest:
+
+```json
+{"file":"coast.jpg", "time":["dawn","golden"], "weather":["clear","fog"], "month":[6,7,8]}
+```
+
+`time` accepts `dawn`, `day`, `golden`, `night`; `weather` accepts `clear`,
+`cloudy`, `fog`, `rain`; `month` accepts numbers 1–12. A `holiday` string can
+be `halloween`, `thanksgiving` (US), `christmas`, or `newyear`.
+No separate switches are needed for tags. With matching off, all tags are ignored.
+Untagged photos and uploaded photos retain their normal rotation.
+
+Dawn runs from 45 minutes before sunrise to an hour after; golden hour from
+90 minutes before sunset to 30 minutes after. Otherwise it is day between
+sunrise and sunset, night outside them. Weather supplies sun times for the
+configured location; keep the TV clock in that location's timezone. Without
+sun times it uses 07:00 and 18:30. Stale weather stops narrowing by weather.
+Clear is WMO 0–2, fog 45/48, rain 51–67, 80–82 and 95+, everything else cloudy.
+
+The rotation prefers regular photos matching time and weather, then time alone
+if fewer than three fit, then all regular photos. Missing tags impose no
+restriction. Holiday photos join during the four weeks before Halloween,
+US Thanksgiving (no earlier than Nov 1), and Christmas (after Thanksgiving),
+through each holiday. Dec 26–31 is New Year. Holiday photos prefer the current
+time if at least three fit. Month photos join only in their month and time.
+Entries with both seasonal tags must satisfy both. Out-of-season entries never
+enter the fallback; if none qualify, the last photo or gradient stays visible.
+The pool updates on weather changes and once a minute, taking effect on the
+next scheduled transition. Desktop previews accept `?holiday=christmas|none`
+and `?month=12`; TV query strings do not override the season.
