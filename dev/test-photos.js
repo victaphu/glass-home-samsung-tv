@@ -27,6 +27,7 @@ function setup(responses) {
     assert.equal(s.calls.length, 2);
     assert.equal(s.calls[1][3], 6000);
   }
+  assert.equal(parse([{file:'a.jpg',licence:'CC0 1.0 Universal Public Domain Dedication'}])[0].credit, 'CC0');
   const off = setup([{status:200,data:[]}]);
   assert.equal((await off.GH.photos.load({photos:{remoteManifest:''}})).length, 0);
   assert.equal(off.calls.length, 1); // no preview fallback on TV

@@ -2,6 +2,15 @@
 (function () {
   'use strict';
   var GH = window.GH;
+  function shortLicence(l) {
+    var s = String(l || '');
+    if (/^CC0/i.test(s) || /public domain dedication/i.test(s)) return 'CC0';
+    var m = /(CC BY(?:-[A-Z]{2})*\s*\d\.\d)/i.exec(s);
+    if (m) return m[1].toUpperCase();
+    if (/public domain/i.test(s)) return 'Public domain';
+    return s;
+  }
+
   function parse(r, base, remote) {
     if (!r || r.status !== 200) return [];
     var list = r.data;
@@ -24,7 +33,7 @@
       return {
         key: remote ? 'r:' + url : 'w:' + file,
         url: url,
-        credit: [text(w.title), text(w.author), text(w.licence_short || w.licence || w.license)].filter(Boolean).join(' · '),
+        credit: [text(w.title), text(w.author), text(w.licence_short || shortLicence(w.licence || w.license))].filter(Boolean).join(' · '),
         user: false
       };
     }).filter(Boolean);

@@ -756,15 +756,6 @@
   }
 
   // ---------- photos ----------
-  function shortLicence(l) {
-    var s = String(l || '');
-    if (/^CC0/i.test(s) || /public domain dedication/i.test(s)) return 'CC0';
-    var m = /(CC BY(?:-[A-Z]{2})*\s*\d\.\d)/i.exec(s);
-    if (m) return m[1].toUpperCase();
-    if (/public domain/i.test(s)) return 'Public domain';
-    return s;
-  }
-
   function loadManifest() {
     return GH.photos.load(cfg).then(function (list) { bundled = list; });
   }
