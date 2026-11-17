@@ -2,9 +2,9 @@
  * Glass Home - home screen.
  *
  * Remote keys (no registration needed): Left/Right move along the dock (no
- * wrap), OK opens, holding OK for 0.7 s opens a small menu (Move left, Move
- * right, Remove or Hide, Cancel), Back closes menus and does nothing at the
- * top level. While the app is hidden (another app in front) every timer and
+ * wrap), OK opens, holding OK for 0.7 s opens a small menu (Move, Remove or
+ * Hide, Cancel); Move then slides the tile with Left/Right until OK places it.
+ * Back closes menus and a move in progress, and does nothing at the top level. While the app is hidden (another app in front) every timer and
  * animation is paused.
  */
 (function () {
@@ -151,7 +151,7 @@
     return keys;
   }
 
-  // HDMI inputs from config.js, in the order chosen with Move left/right;
+  // HDMI inputs from config.js, in the order chosen with the menu's Move;
   // inputs not moved yet follow, in config order. (?inputs=1 shows two sample
   // HDMI inputs and Live TV in preview.)
   var inputDefs = cfg.preview && Q.inputs === '1'
@@ -419,8 +419,9 @@
       if (t) t.el.classList.toggle('focused', idx === focus);
     });
     var text = items[focus].label;
+    if (mode === 'move') text += '   ·   Left / Right to move, OK to place';
     if (label.textContent !== text) label.textContent = text;
-    if (mode === 'dock') label.classList.add('on');
+    if (mode === 'dock' || mode === 'move') label.classList.add('on');
     layoutDock();
     if (!quiet) {
       focusKey = items[focus].key;
@@ -474,10 +475,8 @@
     var it = items[focus];
     if (!it || it.kind === 'add') return;
     var group = groupOf(it);
-    var gi = group.indexOf(it);
     menuItems = [
-      { label: 'Move left', disabled: gi <= 0, run: function () { moveItem(it, -1); } },
-      { label: 'Move right', disabled: gi >= group.length - 1, run: function () { moveItem(it, 1); } },
+      { label: 'Move', disabled: group.length < 2, run: function () { startMove(it); } },
       it.kind === 'web' || it.kind === 'youtube' ? { label: 'Remove', run: function () { removeShortcut(it); } }
         : photoService ? { label: 'Hide', run: function () { hideApp(it); } }
         : null,                           // apps and inputs: no + to bring them back
@@ -510,6 +509,67 @@
     menu.classList.remove('open');
     dock.classList.remove('dimmed');
     mode = 'dock';
+  }
+
+  // ---------- move mode ----------
+  // Picked up from the menu's Move: Left/Right slide the tile among its own
+  // kind, OK places it, Back puts it back where it started. Each step already
+  // saves, so Back restores the order that was in place on pick-up.
+  var moveKey = null;
+  var moveUndo = null;
+
+  function itemByKey(k) {
+    for (var i = 0; i < items.length; i++) if (items[i].key === k) return items[i];
+    return null;
+  }
+
+  function startMove(it) {
+    moveKey = it.key;
+    moveUndo = {
+      appOrder: appOrder.slice(),
+      inputOrder: inputOrder.slice(),
+      shortcuts: shortcuts.slice(),
+      moved: false
+    };
+    mode = 'move';
+    dock.classList.add('moving');
+    setFocus(focus, true);                    // redraws the label with the hint
+    label.classList.add('on');
+  }
+
+  function moveStep(dir) {
+    var cur = itemByKey(moveKey);
+    if (!cur) { endMove(false); return; }
+    var group = groupOf(cur);
+    var gi = group.indexOf(cur);
+    if (gi + dir < 0 || gi + dir >= group.length) return;   // already at the end
+    moveUndo.moved = true;
+    moveItem(cur, dir);
+  }
+
+  function endMove(cancel) {
+    var k = moveKey;
+    var undo = moveUndo;
+    moveKey = null;
+    moveUndo = null;
+    mode = 'dock';
+    dock.classList.remove('moving');
+    if (cancel && undo && undo.moved) {
+      appOrder = undo.appOrder;
+      inputOrder = undo.inputOrder;
+      ls.set('gh.appOrder', appOrder);
+      ls.set('gh.inputOrder', inputOrder);
+      var was = shortcuts.map(function (s) { return s.id; }).join(',');
+      shortcuts = undo.shortcuts;
+      var now = shortcuts.map(function (s) { return s.id; }).join(',');
+      if (photoService && was !== now) {
+        D.orderShortcuts(shortcuts.map(function (s) { return s.id; })).catch(function () { /* left as it was */ });
+      }
+      rebuildDock(k);
+      toast('Put back');
+      return;
+    }
+    rebuildDock(k);
   }
 
   function moveItem(it, dir) {
@@ -683,6 +743,7 @@
     if (k === KEY.BACK || k === KEY.ESC || (k === KEY.BACKSPACE && cfg.preview)) {
       e.preventDefault();
       if (mode === 'menu') closeMenu();
+      else if (mode === 'move') endMove(true);
       else if (mode === 'panel') closePanel();
       return;                                   // at the top level Back does nothing
     }
@@ -719,6 +780,12 @@
         panelFocus = Math.min(small - 1, panelFocus + 1);
       }
       renderPanelFocus();
+      return;
+    }
+    if (mode === 'move') {
+      if (k === KEY.ENTER) { if (!e.repeat) endMove(false); return; }
+      if (k === KEY.LEFT) moveStep(-1);
+      else if (k === KEY.RIGHT) moveStep(1);
       return;
     }
     if (k === KEY.LEFT) setFocus(focus - 1);
