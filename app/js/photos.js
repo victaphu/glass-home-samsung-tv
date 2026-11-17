@@ -11,6 +11,11 @@
     return s;
   }
 
+  function tags(value, allowed) {
+    if (!Array.isArray(value)) return null;
+    var clean = value.filter(function (v) { return allowed.indexOf(v) >= 0; });
+    return clean.length ? clean : null;
+  }
   function parse(r, base, remote) {
     if (!r || r.status !== 200) return [];
     var list = r.data;
@@ -34,6 +39,10 @@
         key: remote ? 'r:' + url : 'w:' + file,
         url: url,
         credit: [text(w.title), text(w.author), text(w.licence_short || shortLicence(w.licence || w.license))].filter(Boolean).join(' · '),
+        time: tags(w.time, ['dawn', 'day', 'golden', 'night']),
+        weather: tags(w.weather, ['clear', 'cloudy', 'fog', 'rain']),
+        holiday: ['halloween', 'thanksgiving', 'christmas', 'newyear'].indexOf(w.holiday) >= 0 ? w.holiday : null,
+        month: tags(w.month, [1,2,3,4,5,6,7,8,9,10,11,12]),
         user: false
       };
     }).filter(Boolean);
@@ -58,5 +67,69 @@
       }, function () { return list; });
     });
   }
-  GH.photos = { parse: parse, load: load };
+  function skyMood(now) {
+    var sky = GH.sky || {};
+    var t = now.getTime();
+    var rise = sky.sunrise;
+    var set = sky.sunset;
+    if (!rise || !set || new Date(rise).toDateString() !== now.toDateString()) {
+      var d = new Date(now);
+      d.setHours(7, 0, 0, 0); rise = d.getTime();
+      d.setHours(18, 30, 0, 0); set = d.getTime();
+    }
+    var H = 3600 * 1000;
+    var time = t >= rise - 0.75 * H && t < rise + H ? 'dawn'
+      : t >= set - 1.5 * H && t < set + 0.5 * H ? 'golden'
+      : t >= rise && t < set ? 'day' : 'night';
+    var c = sky.code;
+    var weather = c == null ? null
+      : c <= 2 ? 'clear'
+      : c === 45 || c === 48 ? 'fog'
+      : (c >= 51 && c <= 67) || (c >= 80 && c <= 82) || c >= 95 ? 'rain'
+      : 'cloudy';
+    return { time: time, weather: weather };
+  }
+
+  // ---------- holiday photos ----------
+  // The four weeks before Halloween, Thanksgiving (4th Thursday of November)
+  // and Christmas, and Dec 26-31 for New Year. Where two overlap, the nearer
+  // one wins. ?holiday=christmas (or none) overrides it in a preview.
+  function holidayNow(now, Q) {
+    if (Q.holiday) return Q.holiday === 'none' ? null : Q.holiday;
+    var y = now.getFullYear();
+    function day(m, d) { return new Date(y, m, d).getTime(); }
+    var t = day(now.getMonth(), now.getDate());
+    var thanks = 1 + (4 - new Date(y, 10, 1).getDay() + 7) % 7 + 21;   // date in November
+    if (t >= day(9, 31 - 28) && t <= day(9, 31)) return 'halloween';
+    if (t > day(9, 31) && t >= day(10, thanks - 28) && t <= day(10, thanks)) return 'thanksgiving';
+    if (t > day(10, thanks) && t >= day(11, 25 - 28) && t <= day(11, 25)) return 'christmas';
+    if (t >= day(11, 26) && t <= day(11, 31)) return 'newyear';
+    return null;
+  }
+
+  // Tagged photos matching both, else the time alone, else every photo; in a
+  // holiday's season its photos join them (by time of day when 3 or more fit),
+  // and in each month that month's photos that fit the time of day. Holiday
+  // and month photos never show out of season. ?month=12 overrides the month
+  // in a preview.
+  function matchingPhotos(all, cfg, now) {
+    if (!cfg.photos || cfg.photos.matchSky !== true) return all;
+    now = now || new Date();
+    var Q = cfg.preview ? GH.query || {} : {};
+    function has(list, v) { return !!list && list.indexOf(v) >= 0; }
+    var regular = all.filter(function (p) { return !p.holiday && !p.month; });
+    var h = holidayNow(now, Q);
+    var month = /^\d+$/.test(Q.month || '') ? +Q.month : now.getMonth() + 1;
+    var festive = h ? all.filter(function (p) { return p.holiday === h && (!p.month || has(p.month, month)); }) : [];
+    var monthly = all.filter(function (p) { return !p.holiday && has(p.month, month); });
+    var m = skyMood(now);
+    var base = regular.filter(function (p) { return (!p.time || has(p.time, m.time)) && (!p.weather || !m.weather || has(p.weather, m.weather)); });
+    if (base.length < 3) base = regular.filter(function (p) { return (!p.time || has(p.time, m.time)); });
+    if (base.length < 3) base = regular;
+    var festiveNow = festive.filter(function (p) { return (!p.time || has(p.time, m.time)); });
+    return base.concat(festiveNow.length >= 3 ? festiveNow : festive,
+      monthly.filter(function (p) { return (!p.time || has(p.time, m.time)); }));
+  }
+
+  GH.photos = { parse: parse, load: load, match: matchingPhotos, skyMood: skyMood, holidayNow: holidayNow };
 }());

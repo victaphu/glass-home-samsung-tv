@@ -762,6 +762,7 @@
 
   // Photos uploaded since the TV last looked are shown next ("fresh"); the
   // first sync after install only records what exists.
+  var photoSignature = null;
   function updatePhotos() {
     var st = photoService ? D.cached() : null;
     var list = st && st.photos ? st.photos : [];
@@ -772,7 +773,11 @@
       return { key: 'u:' + p.id, url: D.media(p.url), credit: '', user: true, fresh: !!known && !knownSet[p.id] };
     });
     if (st && st.photos) ls.set('gh.bg.known', list.map(function (p) { return p.id; }));
-    backdrop.setPhotos(bundled.concat(user));
+    var photos = GH.photos.match(bundled, cfg).concat(user);
+    var signature = photos.map(function (p) { return p.key + (p.fresh ? ':fresh' : ''); }).join('|');
+    if (signature === photoSignature) return;
+    photoSignature = signature;
+    backdrop.setPhotos(photos);
   }
 
   var creditTimer = null;
@@ -919,6 +924,10 @@
       updatePhotos();
       var first = Q.bg ? (/^\d+$/.test(Q.bg) && bundled[+Q.bg] ? bundled[+Q.bg].key : 'w:' + Q.bg) : null;
       backdrop.start(first);
+      if (cfg.photos && cfg.photos.matchSky) {
+        document.addEventListener('gh-sky', updatePhotos);
+        setInterval(updatePhotos, 60000);
+      }
     });
 
     document.addEventListener('keydown', onKeyDown, true);
