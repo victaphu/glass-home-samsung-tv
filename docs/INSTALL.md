@@ -132,6 +132,16 @@ scripts/install.sh    # installs it on the TV and opens it
 permission file to the TV. Installing over an existing copy keeps your photos
 and shortcuts; deleting the app deletes them.
 
+For a smaller package, omit the bundled photos without deleting the originals:
+
+```sh
+scripts/build.sh --without-bundled-photos
+scripts/install.sh
+```
+
+Uploaded photos still work when the photo service is enabled. With no photos
+available, the app shows its background gradient.
+
 ## 9. Make it the screen the TV starts on
 
 On the TV:
@@ -168,6 +178,14 @@ login Keychain.
 - **Install says the certificate or device ID is wrong:** check that the
   `DUID` in your distributor certificate matches `sdb shell 0 getduid`, and that
   `tizen security-profiles list` shows your profile as active.
+- **Installation fails, including error 116:** check the TV's available storage
+  in its Apps or storage settings (menu names vary by model). An installation
+  needs space for the package and temporary installation files. On a 2018
+  UN55NU6900 with about 2 MB free, the roughly 5.4 MB package failed with error
+  116; omitting the bundled photos allowed it to install (see
+  [issue #6](https://github.com/victaphu/glass-home-samsung-tv/issues/6)). Try
+  `scripts/build.sh --without-bundled-photos`, then `scripts/install.sh`.
+  Error 116 can have other causes; also check the certificate advice above.
 - **The photo website doesn't answer:** open Glass Home once (it starts the
   website), and make sure your phone is on the same network, not a guest Wi-Fi.
 - **An app in the dock is missing:** it isn't installed, or its ID differs on
