@@ -61,10 +61,10 @@ async function tvState(p) {
     const base = 'http://127.0.0.1:' + UI + '/index.html?preview=1&api=' + encodeURIComponent('http://127.0.0.1:' + PORT);
     await tv.goto(base + '&bg=nature-06.jpg', 4500);
     let s = await tvState(tv);
-    check('dock has 6 apps + 3 shortcuts + "+"', s.count === 10, s.count);
+    check('dock has 6 apps, Settings + 3 shortcuts + "+"', s.count === 11, s.count);
     check('first tile (YouTube) focused at start', s.focus === 0 && s.label === 'YouTube', s);
     const order = await tv.eval(`[...document.querySelectorAll('#dock-row .tile')].map((t, i) => t.className.replace('tile tile-', '').split(' ')[0])`);
-    check('apps first, then shortcuts, then +', JSON.stringify(order) === JSON.stringify(['app', 'app', 'app', 'app', 'app', 'app', 'web', 'web', 'youtube', 'add']), order);
+    check('apps first, then shortcuts, then +', JSON.stringify(order) === JSON.stringify(['app', 'app', 'app', 'app', 'app', 'app', 'web', 'web', 'youtube', 'settings', 'add']), order);
     await tv.shot(path.join(OUT, 'tv-home.png'));
 
     await tv.key(K.LEFT);
@@ -116,7 +116,7 @@ async function tvState(p) {
     await tv.key(K.ENTER);
     await sleep(400);
     s = await tvState(tv);
-    check('Hide removes the app from the dock', s.count === 9, { count: s.count, before: beforeHide.menuItems, open: beforeHide.menuOpen, label: beforeHide.label });
+    check('Hide removes the app from the dock', s.count === 10, { count: s.count, before: beforeHide.menuItems, open: beforeHide.menuOpen, label: beforeHide.label });
 
     // Go to the + tile (last) and open the panel.
     for (let i = 0; i < 10; i++) await tv.key(K.RIGHT);
@@ -134,7 +134,7 @@ async function tvState(p) {
     await tv.key(K.ENTER);                 // Show hidden apps
     await sleep(400);
     s = await tvState(tv);
-    check('hidden app restored', s.count === 10, s.count);
+    check('hidden app restored', s.count === 11, s.count);
     await tv.key(K.LEFT);
     await sleep(300);
     await tv.shot(path.join(OUT, 'tv-panel.png'));
@@ -163,7 +163,7 @@ async function tvState(p) {
     check('Back closes the panel', !s.panelOpen, s);
     await tv.key(K.BACK);
     s = await tvState(tv);
-    check('Back at the top level does nothing', !s.panelOpen && !s.menuOpen && s.count === 10, s);
+    check('Back at the top level does nothing', !s.panelOpen && !s.menuOpen && s.count === 11, s);
 
     // Visibility: hidden pauses the clock timer and photo rotation.
     const vis = await tv.eval(`(() => {
@@ -203,10 +203,11 @@ async function tvState(p) {
     await tvOld.goto(base + '&still=1&photoService=0', 4500);
     check('smartHubLaunch is off by default', (await tvOld.eval('GH.config.smartHubLaunch')) === false);
     s = await tvState(tvOld);
-    check('no photo service: only the 6 apps, no shortcuts or +', s.count === 6, s);
+    check('no photo service: 6 apps and Settings, no shortcuts or +', s.count === 7, s);
     for (let i = 0; i < 10; i++) await tvOld.key(K.RIGHT);
     s = await tvState(tvOld);
-    check('no photo service: the last tile is an app', s.label === 'Internet', s.label);
+    check('no photo service: the last tile is Settings', s.label === 'Settings', s.label);
+    await tvOld.key(K.LEFT);
     await tvOld.key(K.ENTER, { hold: 900 });
     s = await tvState(tvOld);
     check('no photo service: app menu has no Hide', JSON.stringify(s.menuItems) === JSON.stringify(['Move left*', 'Move right(x)', 'Cancel']), s.menuItems);
@@ -220,7 +221,7 @@ async function tvState(p) {
     const tvIn = await browser.newPage({ width: 1920, height: 1080 });
     await tvIn.eval(`localStorage.removeItem('gh.inputOrder')`).catch(() => {});
     await tvIn.goto(base + '&still=1&inputs=1&focus=6', 4500);   // the dock remembers focus, so set it
-    check('inputs: after the apps, before the shortcuts', JSON.stringify(await kinds(tvIn)) === JSON.stringify(['app', 'app', 'app', 'app', 'app', 'app', 'input', 'input', 'input', 'web', 'web', 'youtube', 'add']), await kinds(tvIn));
+    check('inputs: after the apps, before the shortcuts', JSON.stringify(await kinds(tvIn)) === JSON.stringify(['app', 'app', 'app', 'app', 'app', 'app', 'input', 'input', 'input', 'web', 'web', 'youtube', 'settings', 'add']), await kinds(tvIn));
     s = await tvState(tvIn);
     check('inputs: in config order, with the port under the name', s.label === 'Games console' && /HDMI 2/.test(await tvIn.eval(`document.querySelector('#dock-row .tile.focused').textContent`)), s.label);
     await tvIn.key(K.ENTER, { hold: 900 });
@@ -279,6 +280,27 @@ async function tvState(p) {
     await tvAmb.close();
 
     // ---------------- phone website ----------------
+    const settings = await browser.newPage({ width: 1920, height: 1080 });
+    await settings.goto(base + '&focus=0', 1000);
+    await settings.eval('GH.settings.open()');
+    await settings.key(K.RIGHT); // 45 -> 60 seconds
+    await settings.key(K.DOWN);
+    await settings.key(K.RIGHT); // sky matching off -> on
+    await settings.key(K.BACK);
+    await sleep(1600);
+    check('settings: remote changes survive reload', await settings.eval('GH.config.photoIntervalMs === 60000 && GH.config.photos.matchSky === true'));
+    await settings.eval('GH.settings.open()');
+    await settings.shot(path.join(OUT, 'tv-settings.png'));
+    for (let i=0; i<12; i++) await settings.key(K.DOWN);
+    await settings.key(K.ENTER); // reset to config.js
+    await settings.key(K.BACK);
+    await sleep(1600);
+    check('settings: reset restores config defaults', await settings.eval('GH.config.photoIntervalMs === 45000 && GH.config.photos.matchSky === false && localStorage.getItem("gh.preferences.v1") === null'));
+    await settings.eval('GH.settings.open()');
+    await settings.key(K.BACK);
+    check('settings: Back with no changes closes the panel', await settings.eval('!GH.settings.isOpen()'));
+    await settings.close();
+
     console.log('Phone website');
     const ph = await browser.newPage({ width: 390, height: 844, scale: 2, mobile: true });
     await ph.goto('http://127.0.0.1:' + PORT + '/', 1800);
@@ -339,7 +361,7 @@ async function tvState(p) {
     const tv3 = await browser.newPage({ width: 1920, height: 1080 });
     await tv3.goto(base + '&bg=nature-04.jpg&focus=0', 4500);
     const n3 = await tv3.eval(`document.querySelectorAll('#dock-row .tile').length`);
-    check('first run: six apps and +', n3 === 7, n3);
+    check('first run: six apps, Settings and +', n3 === 8, n3);
     await tv3.shot(path.join(OUT, 'tv-first-run.png'));
     await tv3.close();
   } finally {
