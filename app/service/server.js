@@ -221,6 +221,50 @@ function createService(opts) {
     });
   }
 
+  // ---------- the TV's own app icons ----------
+  // The webview can't open file:// icon paths on every model, and for some apps
+  // (YouTube) the path it reports is the engine's icon rather than the app's.
+  // The platform also keeps proper per-app icons under a store-id directory, so
+  // the service reads those and hands them to the dock over http.
+  var ICON_DIR = '/opt/share/webappservice/apps_icon/all/';
+  var ICON_ROOTS = [ICON_DIR, '/opt/usr/apps/', '/opt/share/applications/'];
+
+  function bestIconIn(dir) {
+    var names;
+    try { names = fs.readdirSync(dir); } catch (e) { return null; }
+    var best = null;
+    var bestPx = -1;
+    names.forEach(function (n) {
+      var m = /^(\d+)x\1\.png$/.exec(n);
+      if (!m) return;
+      var px = parseInt(m[1], 10);
+      if (px > bestPx) { bestPx = px; best = n; }
+    });
+    return best ? dir + best : null;
+  }
+
+  function serveAppIcon(ctx, res) {
+    var sid = String(ctx.query.storeId || '');
+    var want = String(ctx.query.path || '');
+    var file = null;
+    if (sid) {
+      if (!/^[0-9]+$/.test(sid)) return sendJSON(res, 400, { error: 'bad-store-id' });
+      file = bestIconIn(ICON_DIR + sid + '/');
+    } else if (want) {
+      // No traversal, absolute only, and inside a known icon directory.
+      if (want.charAt(0) !== '/' || want.indexOf('..') >= 0 || want.indexOf('\0') >= 0) {
+        return sendJSON(res, 400, { error: 'bad-path' });
+      }
+      if (!/\.(png|jpg|jpeg)$/i.test(want)) return sendJSON(res, 400, { error: 'bad-type' });
+      var ok = false;
+      ICON_ROOTS.forEach(function (r) { if (want.indexOf(r) === 0) ok = true; });
+      if (!ok) return sendJSON(res, 403, { error: 'outside-icon-dirs' });
+      file = want;
+    }
+    if (!file) return sendJSON(res, 404, { error: 'not-found' });
+    serveFile(res, file, /\.png$/i.test(file) ? 'image/png' : 'image/jpeg', 604800);
+  }
+
   // Ignores the rest of a request body we refuse, without reading forever.
   function refuseBody(req, res, status, obj) {
     sendJSON(res, status, obj, { 'Connection': 'close' });
@@ -885,6 +929,12 @@ function createService(opts) {
         corsOpen(res);
         if (ctx.method === 'OPTIONS') return sendEmpty(res, 204);
         return sendJSON(res, 200, { ok: true, name: 'Glass Home', version: VERSION });
+      }
+      if (top === 'appicon' && segs.length === 1) {
+        corsOpen(res);
+        if (ctx.method === 'OPTIONS') return sendEmpty(res, 204);
+        if (ctx.method !== 'GET') return refuseBody(req, res, 405, { error: 'method' });
+        return serveAppIcon(ctx, res);
       }
       if (top === 'local') return handleLocal(ctx);
       if (top === 'media') {
