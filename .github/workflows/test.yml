@@ -30,6 +30,7 @@ jobs:
           node dev/test-netutil.js
           node dev/test-backdrop.js
           node dev/test-photos.js
+          node dev/test-preferences.js
           node dev/test-parsers.js
           node dev/test-limiter.js
           node dev/test-data.js

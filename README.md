@@ -295,3 +295,16 @@ enter the fallback; if none qualify, the last photo or gradient stays visible.
 The pool updates on weather changes and once a minute, taking effect on the
 next scheduled transition. Desktop previews accept `?holiday=christmas|none`
 and `?month=12`; TV query strings do not override the season.
+
+## Settings on the TV
+
+Open the **Settings** dock tile with OK. Up/Down selects a row; Left/Right
+or OK changes it. Back saves and reloads Glass Home to apply the changes.
+Photo interval, sky matching, screensaver delay, evening dimming hours, and
+temperature unit are available even with the photo service disabled.
+
+Settings stay in this app's local storage across restarts and updates.
+**Reset to the defaults**, then Back, removes the overrides and restores your
+`config.js` values. Uninstalling the app also removes the overrides. The
+manifest address, weather location, app IDs, and build options stay in the
+configuration files. No Home Assistant or phone app is required.

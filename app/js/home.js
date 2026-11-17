@@ -184,7 +184,11 @@
       if (photoService && hidden.indexOf(k) >= 0) return;    // as for apps
       list.push({ kind: 'input', key: k, appKey: k, label: inp.label, hdmi: inp.hdmi, tv: !!inp.tv, icon: inp.icon || null });
     });
-    if (!photoService) return list;
+    var settingsTile = { kind: 'settings', key: 'settings', label: 'Settings', icon: 'img/settings.svg' };
+    if (!photoService) {
+      if (GH.settings) list.push(settingsTile);
+      return list;
+    }
     shortcuts.forEach(function (s) {
       list.push({
         kind: s.type === 'youtube' ? 'youtube' : 'web', key: 'sc:' + s.id, scId: s.id, label: s.name, url: s.url,
@@ -192,6 +196,7 @@
         icon: s.icon ? D.media(s.icon) : null, iconW: s.iconW || 0
       });
     });
+    if (GH.settings) list.push(settingsTile);
     list.push({ kind: 'add', key: 'add', label: 'Add photos and shortcuts' });
     return list;
   }
@@ -276,7 +281,7 @@
     var face = div('face');
     el.appendChild(face);
     var img;
-    if (it.kind === 'app') {
+    if (it.kind === 'app' || it.kind === 'settings') {
       if (it.icon) {
         img = new Image();
         img.className = 'app-icon';
@@ -446,6 +451,7 @@
 
   function activate(it) {
     if (!it) return;
+    if (it.kind === 'settings') { GH.settings.open(); return; }
     if (it.kind === 'add') { openPanel(); return; }
     var p;
     var viaSmartHub = it.kind === 'app' && smartHubLaunch;
@@ -472,7 +478,7 @@
 
   function openMenu() {
     var it = items[focus];
-    if (!it || it.kind === 'add') return;
+    if (!it || it.kind === 'add' || it.kind === 'settings') return;
     var group = groupOf(it);
     var gi = group.indexOf(it);
     menuItems = [

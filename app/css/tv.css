@@ -748,3 +748,24 @@ html.still *, html.still *::before, html.still *::after { transition: none !impo
 html.lite .bg-layer img { will-change: auto; }
 /* smartHubLaunch (older TVs): frees graphics memory while an app starts. */
 html.launching #stage { display: none; }
+
+/* ---------- Settings (js/settings.js) ---------- */
+#settings { z-index: 30; position: absolute; top: 0; right: 0; bottom: 0; left: 0; display: none; background: #0e1216; overflow: hidden; }
+#settings.open { display: block; }
+.st-page { position: absolute; top: 0; right: 0; bottom: 0; left: 0; padding: 60px 0 0 90px; }
+.st-head { display: flex; align-items: baseline; justify-content: space-between; padding-right: 90px; }
+.st-title { font-size: 52px; font-weight: 600; }
+.st-hint { font-size: 24px; color: rgba(255, 255, 255, 0.55); }
+.st-list { position: absolute; top: 160px; bottom: 60px; left: 90px; width: 1100px; overflow-y: auto; }
+.st-list::-webkit-scrollbar { display: none; }
+.st-section { margin: 30px 0 8px; font-size: 24px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: rgba(255, 255, 255, 0.45); }
+.st-section:first-child { margin-top: 0; }
+.st-row { display: flex; align-items: center; height: 72px; padding: 0 30px; margin: 0 -30px; border-radius: 18px; font-size: 30px; }
+.st-row.focused { background: #fff; color: #0c0c0e; }
+.st-label { flex: 1; }
+.st-value { display: flex; align-items: center; font-weight: 600; }
+.st-val { min-width: 160px; text-align: center; }
+.st-arrow { font-size: 20px; opacity: 0; }
+.st-row.focused .st-arrow { opacity: 0.5; }
+.st-reset { color: #ff8a80; }
+.st-reset.focused { color: #b3261e; }
