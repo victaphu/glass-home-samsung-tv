@@ -756,38 +756,8 @@
   }
 
   // ---------- photos ----------
-  function shortLicence(l) {
-    var s = String(l || '');
-    if (/^CC0/i.test(s) || /public domain dedication/i.test(s)) return 'CC0';
-    var m = /(CC BY(?:-[A-Z]{2})*\s*\d\.\d)/i.exec(s);
-    if (m) return m[1].toUpperCase();
-    if (/public domain/i.test(s)) return 'Public domain';
-    return s;
-  }
-
   function loadManifest() {
-    function parse(r, base) {
-      var list = r.data;
-      if (list && !Array.isArray(list)) list = list.photos || list.items || list.wallpapers || null;
-      if (!Array.isArray(list)) return null;
-      return list.map(function (w) {
-        var file = w.file || w.src || w.path;
-        if (!file) return null;
-        return {
-          key: 'w:' + file,
-          url: base + file,
-          credit: [w.title, w.author, w.licence_short || shortLicence(w.licence || w.license)].filter(Boolean).join(' · '),
-          user: false
-        };
-      }).filter(Boolean);
-    }
-    return GH.request('GET', 'wallpapers/manifest.json', undefined, 4000).then(function (r) {
-      var list = parse(r, 'wallpapers/');
-      if (list && list.length) return list;
-      return GH.request('GET', '/preview-assets/manifest.json', undefined, 3000).then(function (r2) {
-        return parse(r2, '/preview-assets/') || [];
-      });
-    }).then(function (list) { bundled = list; });
+    return GH.photos.load(cfg).then(function (list) { bundled = list; });
   }
 
   // Photos uploaded since the TV last looked are shown next ("fresh"); the

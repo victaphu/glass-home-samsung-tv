@@ -75,6 +75,7 @@ All in [`app/js/config.js`](app/js/config.js):
 | `ambient` | Screensaver delay. |
 | `night` | Evening dimming hours (24-hour, TV clock). |
 | `youtubeMode` | How YouTube shortcuts are opened (see below). |
+| `photos.remoteManifest` | URL of an optional HTTP(S) photo manifest. Empty by default; works with `photoService: false`. See [remote photos](#photos-from-a-url). |
 | `photoIntervalMs` | How often the photo changes. |
 | `photoService` | `false` turns off the photo website, and with it **+**, shortcuts and your own photos. For TVs that can't run it (2018 models); also remove `<tizen:service>` and the `web.service` feature from `app/config.xml`. |
 | `smartHubLaunch` | `true` if apps won't open from the dock (seen on 2017–2020 TVs): opens them through Samsung's own launcher, trying each Samsung store ID listed for the app, and hides the photos while they start. Off by default. |
@@ -234,3 +235,29 @@ iPhone camera, and wrote and tested the app. It also watched one cat video.
 
 [MIT](LICENSE). Photo and data credits: [CREDITS.md](CREDITS.md). Not affiliated
 with Samsung, Apple or any app shown.
+
+## Photos from a URL
+
+Set `photos.remoteManifest` in `app/js/config.js` to the URL of a JSON file
+on a NAS, Pi, or other web server. The TV loads it once at startup and adds its
+photos to the bundled rotation. No additional enable flag or photo service is
+required. Restart Glass Home to load edits to the manifest.
+
+```json
+[
+  {"file": "photos/coast.jpg", "title": "Coast", "author": "Your name", "licence": "Your licence"}
+]
+```
+
+The existing `photos`, `items`, or `wallpapers` object wrappers and `src`/`path`
+aliases also work. Relative paths resolve against the manifest URL (including
+`../`); absolute HTTP(S) image URLs work too. Remote images must have a `.jpg`,
+`.jpeg`, `.png`, `.gif`, `.webp`, `.avif`, or `.bmp` path; actual format support
+depends on the TV. The manifest is data only, with no scripts, nested manifests,
+or settings. Only the configured manifest address is requested; image addresses
+come from its entries. Failed or invalid manifests leave the bundled/uploaded
+photos available. Without any photos, the background gradient remains visible.
+
+Use a server and images you trust. The TV must be able to reach them without
+sign-in; HTTP traffic is unencrypted. For desktop previews, the server must
+allow cross-origin requests (CORS). No Home Assistant integration is needed.

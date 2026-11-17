@@ -43,6 +43,10 @@
     // the launcher refuses. Off by default: not needed or tested on newer TVs.
     smartHubLaunch: false,
 
+    // Optional HTTP(S) manifest on your NAS or another web server. Empty: off.
+    // Paths in the list resolve relative to this URL. No photo service needed.
+    photos: { remoteManifest: '' },
+
     photoIntervalMs: 45000,
     fadeMs: 1600,
     kenBurnsScale: 1.06,
