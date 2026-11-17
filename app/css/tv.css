@@ -756,7 +756,8 @@ html.launching #stage { display: none; }
 .st-head { display: flex; align-items: baseline; justify-content: space-between; padding-right: 90px; }
 .st-title { font-size: 52px; font-weight: 600; }
 .st-hint { font-size: 24px; color: rgba(255, 255, 255, 0.55); }
-.st-list { position: absolute; top: 160px; left: 90px; width: 1100px; transition: transform 0.25s ease; }
+.st-list { position: absolute; top: 160px; bottom: 60px; left: 90px; width: 1100px; overflow-y: auto; }
+.st-list::-webkit-scrollbar { display: none; }
 .st-section { margin: 30px 0 8px; font-size: 24px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: rgba(255, 255, 255, 0.45); }
 .st-section:first-child { margin-top: 0; }
 .st-row { display: flex; align-items: center; height: 72px; padding: 0 30px; margin: 0 -30px; border-radius: 18px; font-size: 30px; }

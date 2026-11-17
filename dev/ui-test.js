@@ -290,6 +290,11 @@ async function tvState(p) {
     await sleep(1600);
     check('settings: remote changes survive reload', await settings.eval('GH.config.photoIntervalMs === 60000 && GH.config.photos.matchSky === true'));
     await settings.eval('GH.settings.open()');
+    for (let i=0; i<6; i++) await settings.key(K.DOWN); // temperature
+    const beforeUnit = await settings.eval(`document.querySelector('#settings .focused').getBoundingClientRect().top`);
+    await settings.key(K.RIGHT);
+    await sleep(300);
+    check('settings: temperature change preserves row position', await settings.eval(`Math.abs(document.querySelector('#settings .focused').getBoundingClientRect().top - ${beforeUnit}) < 1`));
     await settings.shot(path.join(OUT, 'tv-settings.png'));
     for (let i=0; i<12; i++) await settings.key(K.DOWN);
     await settings.key(K.ENTER); // reset to config.js

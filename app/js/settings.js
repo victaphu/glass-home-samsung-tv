@@ -69,6 +69,8 @@
   }
 
   function render() {
+    var previous = root.querySelector('.st-list');
+    var scroll = previous ? previous.scrollTop : 0;
     clear(root);
     var page = el('div', 'st-page');
     var head = el('div', 'st-head');
@@ -94,8 +96,11 @@
     // Keep the focused row in view.
     var f = track.querySelector('.focused');
     if (f) {
-      var y = f.offsetTop - 380;
-      track.style.transform = 'translateY(' + (-Math.max(0, y)) + 'px)';
+      track.scrollTop = scroll;
+      if (f.offsetTop < scroll) track.scrollTop = f.offsetTop;
+      else if (f.offsetTop + f.offsetHeight > scroll + track.clientHeight) {
+        track.scrollTop = f.offsetTop + f.offsetHeight - track.clientHeight;
+      }
     }
   }
 
